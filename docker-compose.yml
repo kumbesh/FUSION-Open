@@ -1,0 +1,108 @@
+name: fusion
+
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:26.8.1.2041-alpine
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: fusion
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-fusion}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-fusion-local-only}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - clickhouse-logs:/var/log/clickhouse-server
+      - ./clickhouse/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - fusion-backend
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          clickhouse-client --user "$${CLICKHOUSE_USER}"
+          --password "$${CLICKHOUSE_PASSWORD}" --query "SELECT 1"
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+
+  vector:
+    image: timberio/vector:0.58.0-alpine
+    restart: unless-stopped
+    command:
+      - --config
+      - /etc/vector/vector.yaml
+    environment:
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-fusion}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-fusion-local-only}
+      VECTOR_DANGEROUSLY_ALLOW_ENV_VAR_INTERPOLATION: "true"
+      VECTOR_REQUIRE_HEALTHY: "true"
+    ports:
+      - "127.0.0.1:${FUSION_INGEST_PORT:-8686}:8686"
+      - "127.0.0.1:${FUSION_VECTOR_API_PORT:-8687}:8687"
+    volumes:
+      - ./vector/vector.yaml:/etc/vector/vector.yaml:ro
+      - vector-data:/var/lib/vector
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    networks:
+      - fusion-backend
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://127.0.0.1:8687/health
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+
+  grafana:
+    image: grafana/grafana:13.2.1
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-fusion-local-only}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_PLUGINS_PREINSTALL_SYNC: grafana-clickhouse-datasource@4.21.2
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-fusion}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-fusion-local-only}
+    ports:
+      - "127.0.0.1:${FUSION_GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    networks:
+      - fusion-backend
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://127.0.0.1:3000/api/health
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  fusion-backend:
+    driver: bridge
+
+volumes:
+  clickhouse-data:
+  clickhouse-logs:
+  grafana-data:
+  vector-data:
+

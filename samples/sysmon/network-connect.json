@@ -1,0 +1,28 @@
+{
+  "Event": {
+    "System": {
+      "Provider": {
+        "Name": "Microsoft-Windows-Sysmon"
+      },
+      "EventID": 3,
+      "Channel": "Microsoft-Windows-Sysmon/Operational",
+      "Computer": "WORKSTATION-01"
+    },
+    "EventData": {
+      "RuleName": "technique_id=T1071.001",
+      "UtcTime": "2026-09-02T10:02:00.789Z",
+      "ProcessGuid": "{A1B2C3D4-0002-0000-0000-000000000002}",
+      "ProcessId": "4343",
+      "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "User": "LAB\\analyst",
+      "Protocol": "tcp",
+      "Initiated": "true",
+      "SourceIp": "10.10.20.15",
+      "SourcePort": "49720",
+      "DestinationIp": "1.1.1.1",
+      "DestinationHostname": "one.one.one.one",
+      "DestinationPort": "443"
+    }
+  }
+}
+

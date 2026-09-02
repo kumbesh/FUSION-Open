@@ -1,0 +1,197 @@
+data_dir: /var/lib/vector
+
+api:
+  enabled: true
+  address: 0.0.0.0:8687
+
+sources:
+  sysmon_http:
+    type: http_server
+    address: 0.0.0.0:8686
+    method: POST
+    path: /sysmon
+    strict_path: true
+    response_code: 202
+    headers:
+      - X-Fusion-Validation-Id
+    framing:
+      method: bytes
+    decoding:
+      codec: json
+
+transforms:
+  normalize_sysmon:
+    type: remap
+    inputs:
+      - sysmon_http
+    drop_on_abort: true
+    reroute_dropped: true
+    source: |-
+      original = .
+
+      event_id_raw = .Event.System.EventID || .event.System.EventID || .winlog.event_id || .event_id || .event.code || 0
+      event_id = to_int(event_id_raw) ?? 0
+
+      source_time_raw = .Event.EventData.UtcTime || .event.EventData.UtcTime || .winlog.event_data.UtcTime || .event_data.UtcTime || .Event.System.TimeCreated.SystemTime || .event.System.TimeCreated.SystemTime || ."@timestamp" || .timestamp
+      source_time_text = to_string(source_time_raw) ?? ""
+      event_time = parse_timestamp(source_time_text, format: "%+") ?? now()
+
+      event_type = if event_id == 1 {
+        "process_create"
+      } else if event_id == 3 {
+        "network_connect"
+      } else if event_id == 4104 {
+        "powershell_script"
+      } else {
+        "sysmon_other"
+      }
+
+      channel_raw = .Event.System.Channel || .event.System.Channel || .winlog.channel || .channel || "Microsoft-Windows-Sysmon/Operational"
+      channel = to_string(channel_raw) ?? ""
+      computer_raw = .Event.System.Computer || .event.System.Computer || .host.name || .computer || "unknown"
+      computer = to_string(computer_raw) ?? "unknown"
+      user_raw = .Event.EventData.User || .event.EventData.User || .winlog.event_data.User || .event_data.User || .user.name || .user || ""
+      user = to_string(user_raw) ?? ""
+      process_guid_raw = .Event.EventData.ProcessGuid || .event.EventData.ProcessGuid || .winlog.event_data.ProcessGuid || .event_data.ProcessGuid || .process_guid || ""
+      process_guid = to_string(process_guid_raw) ?? ""
+      process_id_raw = .Event.EventData.ProcessId || .event.EventData.ProcessId || .winlog.event_data.ProcessId || .event_data.ProcessId || .process.pid || .process_id || 0
+      process_id = to_int(process_id_raw) ?? 0
+      image_raw = .Event.EventData.Image || .event.EventData.Image || .winlog.event_data.Image || .event_data.Image || .process.executable || .image || ""
+      image = to_string(image_raw) ?? ""
+      command_line_raw = .Event.EventData.CommandLine || .event.EventData.CommandLine || .winlog.event_data.CommandLine || .event_data.CommandLine || .process.command_line || .command_line || ""
+      command_line = to_string(command_line_raw) ?? ""
+      parent_image_raw = .Event.EventData.ParentImage || .event.EventData.ParentImage || .winlog.event_data.ParentImage || .event_data.ParentImage || .process.parent.executable || .parent_image || ""
+      parent_image = to_string(parent_image_raw) ?? ""
+      parent_command_line_raw = .Event.EventData.ParentCommandLine || .event.EventData.ParentCommandLine || .winlog.event_data.ParentCommandLine || .event_data.ParentCommandLine || .process.parent.command_line || .parent_command_line || ""
+      parent_command_line = to_string(parent_command_line_raw) ?? ""
+      powershell_script_raw = .Event.EventData.ScriptBlockText || .event.EventData.ScriptBlockText || .winlog.event_data.ScriptBlockText || .event_data.ScriptBlockText || .powershell_script || ""
+      powershell_script = to_string(powershell_script_raw) ?? ""
+      source_ip_raw = .Event.EventData.SourceIp || .event.EventData.SourceIp || .winlog.event_data.SourceIp || .event_data.SourceIp || .source.ip || .source_ip || ""
+      source_ip = to_string(source_ip_raw) ?? ""
+      source_port_raw = .Event.EventData.SourcePort || .event.EventData.SourcePort || .winlog.event_data.SourcePort || .event_data.SourcePort || .source.port || .source_port || 0
+      source_port = to_int(source_port_raw) ?? 0
+      destination_ip_raw = .Event.EventData.DestinationIp || .event.EventData.DestinationIp || .winlog.event_data.DestinationIp || .event_data.DestinationIp || .destination.ip || .destination_ip || ""
+      destination_ip = to_string(destination_ip_raw) ?? ""
+      destination_port_raw = .Event.EventData.DestinationPort || .event.EventData.DestinationPort || .winlog.event_data.DestinationPort || .event_data.DestinationPort || .destination.port || .destination_port || 0
+      destination_port = to_int(destination_port_raw) ?? 0
+      destination_hostname_raw = .Event.EventData.DestinationHostname || .event.EventData.DestinationHostname || .winlog.event_data.DestinationHostname || .event_data.DestinationHostname || .destination.domain || .destination_hostname || ""
+      destination_hostname = to_string(destination_hostname_raw) ?? ""
+      protocol_raw = .Event.EventData.Protocol || .event.EventData.Protocol || .winlog.event_data.Protocol || .event_data.Protocol || .network.transport || .protocol || ""
+      protocol = downcase(to_string(protocol_raw) ?? "")
+      initiated_raw = .Event.EventData.Initiated || .event.EventData.Initiated || .winlog.event_data.Initiated || .event_data.Initiated || .initiated || false
+      initiated_bool = to_bool(initiated_raw) ?? false
+      initiated_value = if initiated_bool { 1 } else { 0 }
+      hashes_raw = .Event.EventData.Hashes || .event.EventData.Hashes || .winlog.event_data.Hashes || .event_data.Hashes || .hashes || ""
+      hashes = to_string(hashes_raw) ?? ""
+      rule_name_raw = .Event.EventData.RuleName || .event.EventData.RuleName || .winlog.event_data.RuleName || .event_data.RuleName || .rule_name || ""
+      rule_name = to_string(rule_name_raw) ?? ""
+      validation_id_raw = ."X-Fusion-Validation-Id" || ."x-fusion-validation-id" || .validation_id || ""
+      validation_id = to_string(validation_id_raw) ?? ""
+
+      . = {
+        "event_time": format_timestamp!(event_time, format: "%Y-%m-%d %H:%M:%S%.3f"),
+        "event_id": event_id,
+        "event_type": event_type,
+        "channel": channel,
+        "computer": computer,
+        "user": user,
+        "process_guid": process_guid,
+        "process_id": process_id,
+        "image": image,
+        "command_line": command_line,
+        "parent_image": parent_image,
+        "parent_command_line": parent_command_line,
+        "powershell_script": powershell_script,
+        "source_ip": source_ip,
+        "source_port": source_port,
+        "destination_ip": destination_ip,
+        "destination_port": destination_port,
+        "destination_hostname": destination_hostname,
+        "protocol": protocol,
+        "initiated": initiated_value,
+        "hashes": hashes,
+        "rule_name": rule_name,
+        "validation_id": validation_id,
+        "raw_json": encode_json(original)
+      }
+
+  rejected_sysmon:
+    type: remap
+    inputs:
+      - normalize_sysmon.dropped
+    source: |-
+      .fusion_error = "normalization_failed"
+
+sinks:
+  clickhouse:
+    type: clickhouse
+    inputs:
+      - normalize_sysmon
+    endpoint: http://clickhouse:8123
+    database: fusion
+    table: sysmon_events
+    auth:
+      strategy: basic
+      user: "${CLICKHOUSE_USER}"
+      password: "${CLICKHOUSE_PASSWORD}"
+    skip_unknown_fields: false
+    compression: gzip
+    batch:
+      max_events: 1000
+      timeout_secs: 1
+    buffer:
+      type: disk
+      max_size: 268435488
+      when_full: block
+    request:
+      retry_attempts: 10
+      retry_initial_backoff_secs: 1
+      retry_max_duration_secs: 30
+
+  rejected_console:
+    type: console
+    inputs:
+      - rejected_sysmon
+    encoding:
+      codec: json
+
+tests:
+  - name: normalize_nested_sysmon_process_create
+    inputs:
+      - insert_at: normalize_sysmon
+        type: log
+        log_fields:
+          Event:
+            System:
+              EventID: 1
+              Computer: WORKSTATION-01
+            EventData:
+              UtcTime: "2026-09-02T10:00:00.123Z"
+              Image: 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
+              CommandLine: 'powershell.exe -NoProfile -Command Get-Process'
+              ProcessId: "4242"
+    outputs:
+      - extract_from: normalize_sysmon
+        conditions:
+          - type: vrl
+            source: '.event_id == 1 && .event_type == "process_create" && .process_id == 4242 && contains(to_string(.image) ?? "", "powershell.exe")'
+
+  - name: normalize_ecs_network_connection
+    inputs:
+      - insert_at: normalize_sysmon
+        type: log
+        log_fields:
+          "@timestamp": "2026-09-02T10:01:00Z"
+          winlog:
+            event_id: 3
+            event_data:
+              DestinationIp: 1.1.1.1
+              DestinationPort: "443"
+              Protocol: tcp
+          host:
+            name: WORKSTATION-01
+    outputs:
+      - extract_from: normalize_sysmon
+        conditions:
+          - type: vrl
+            source: '.event_type == "network_connect" && .destination_port == 443 && .destination_ip == "1.1.1.1"'

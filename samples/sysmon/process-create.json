@@ -1,0 +1,25 @@
+{
+  "Event": {
+    "System": {
+      "Provider": {
+        "Name": "Microsoft-Windows-Sysmon"
+      },
+      "EventID": 1,
+      "Channel": "Microsoft-Windows-Sysmon/Operational",
+      "Computer": "WORKSTATION-01"
+    },
+    "EventData": {
+      "RuleName": "technique_id=T1059",
+      "UtcTime": "2026-09-02T10:00:00.123Z",
+      "ProcessGuid": "{A1B2C3D4-0001-0000-0000-000000000001}",
+      "ProcessId": "4242",
+      "Image": "C:\\Windows\\System32\\cmd.exe",
+      "CommandLine": "cmd.exe /c whoami",
+      "User": "LAB\\analyst",
+      "Hashes": "SHA256=9F86D081884C7D659A2FEAA0C55AD015A3BF4F1B2B0B822CD15D6C15B0F00A08",
+      "ParentImage": "C:\\Windows\\explorer.exe",
+      "ParentCommandLine": "C:\\Windows\\Explorer.EXE"
+    }
+  }
+}
+

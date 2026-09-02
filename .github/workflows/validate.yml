@@ -1,0 +1,39 @@
+name: Validate Fusion
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Validate Compose model
+        run: docker compose config --quiet
+
+      - name: Validate Vector and run VRL tests
+        run: |
+          docker compose pull vector
+          docker compose run --rm --no-deps vector validate --no-environment /etc/vector/vector.yaml
+          docker compose run --rm --no-deps vector test /etc/vector/vector.yaml
+
+      - name: Deploy and validate the complete lab
+        run: ./scripts/deploy.sh
+
+      - name: Show container logs after failure
+        if: failure()
+        run: docker compose logs --no-color --tail=200
+
+      - name: Stop lab
+        if: always()
+        run: docker compose down --volumes --remove-orphans
+

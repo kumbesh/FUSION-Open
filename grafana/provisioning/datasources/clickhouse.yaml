@@ -1,0 +1,27 @@
+apiVersion: 1
+
+deleteDatasources:
+  - name: Fusion ClickHouse
+    orgId: 1
+
+datasources:
+  - name: Fusion ClickHouse
+    uid: fusion-clickhouse
+    type: grafana-clickhouse-datasource
+    access: proxy
+    isDefault: true
+    editable: false
+    jsonData:
+      host: clickhouse
+      port: 9000
+      protocol: native
+      username: ${CLICKHOUSE_USER}
+      defaultDatabase: fusion
+      defaultTable: sysmon_events
+      secure: false
+      tlsSkipVerify: false
+      queryTimeout: 30
+      dialTimeout: 10
+    secureJsonData:
+      password: ${CLICKHOUSE_PASSWORD}
+

@@ -1,0 +1,25 @@
+{
+  "Event": {
+    "System": {
+      "Provider": {
+        "Name": "Microsoft-Windows-Sysmon"
+      },
+      "EventID": 1,
+      "Channel": "Microsoft-Windows-Sysmon/Operational",
+      "Computer": "WORKSTATION-01"
+    },
+    "EventData": {
+      "RuleName": "technique_id=T1059.001",
+      "UtcTime": "2026-09-02T10:01:00.456Z",
+      "ProcessGuid": "{A1B2C3D4-0002-0000-0000-000000000002}",
+      "ProcessId": "4343",
+      "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "CommandLine": "powershell.exe -NoProfile -Command Get-Process",
+      "User": "LAB\\analyst",
+      "Hashes": "SHA256=60303AE22B9988617223FE74365E36173470C9D286531E6E74A37C7C71F19A1C",
+      "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+      "ParentCommandLine": "cmd.exe"
+    }
+  }
+}
+
