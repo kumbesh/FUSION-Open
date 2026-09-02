@@ -23,7 +23,7 @@ foreach ($requiredText in @(
 }
 
 foreach ($eventId in @(1, 3, 7, 11, 13, 22)) {
-    if ($template -notmatch "(?m)^\s+- $eventId$") {
+    if ($template -notmatch "(?m)^\s+- $eventId\r?$") {
         throw "Windows agent template does not select Sysmon Event ID $eventId."
     }
 }
