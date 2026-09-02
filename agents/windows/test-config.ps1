@@ -15,7 +15,8 @@ foreach ($requiredText in @(
     "max_event_data_length: 0",
     "read_existing_events: false",
     "type: http",
-    "method: newline_delimited"
+    "method: bytes",
+    "max_events: 1"
 )) {
     if (-not $template.Contains($requiredText)) {
         throw "Windows agent template is missing required setting: $requiredText"

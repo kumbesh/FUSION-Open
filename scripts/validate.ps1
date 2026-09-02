@@ -83,18 +83,18 @@ if (-not $SkipSamples) {
         }
     }
 
-    $windowsBodies = foreach ($sampleFile in $windowsSampleFiles) {
+    foreach ($sampleFile in $windowsSampleFiles) {
         $payload = Get-Content -LiteralPath $sampleFile.FullName -Raw | ConvertFrom-Json
         $now = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
         $payload.timestamp = $now
         if ($payload.event_data.UtcTime) {
             $payload.event_data.UtcTime = $now
         }
-        $payload | ConvertTo-Json -Depth 20 -Compress
-    }
-    $response = Invoke-WebRequest -Uri $ingestUri -Method Post -Headers $headers -ContentType "application/x-ndjson" -Body ($windowsBodies -join "`n")
-    if ($response.StatusCode -ne 202) {
-        throw "Vector rejected the Windows-agent NDJSON batch with HTTP $($response.StatusCode)."
+        $body = $payload | ConvertTo-Json -Depth 20 -Compress
+        $response = Invoke-WebRequest -Uri $ingestUri -Method Post -Headers $headers -ContentType "application/json" -Body $body
+        if ($response.StatusCode -ne 202) {
+            throw "Vector rejected $($sampleFile.Name) with HTTP $($response.StatusCode)."
+        }
     }
 } else {
     Write-Host "[5/8] Sample ingestion skipped."

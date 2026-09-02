@@ -15,9 +15,7 @@ sources:
     headers:
       - X-Fusion-Validation-Id
     framing:
-      method: newline_delimited
-      newline_delimited:
-        max_length: 2097152
+      method: bytes
     decoding:
       codec: json
 

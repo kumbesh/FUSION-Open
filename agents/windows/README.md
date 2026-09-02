@@ -1,6 +1,6 @@
 # Fusion Windows Vector agent
 
-This directory contains the Fusion v0.2 endpoint agent. It uses Vector 0.58.0's native `windows_event_log` source to read new events from `Microsoft-Windows-Sysmon/Operational`, selects Event IDs 1, 3, 7, 11, 13, and 22, and sends newline-delimited JSON to the existing Fusion `/sysmon` receiver. It does not install or configure Sysmon.
+This directory contains the Fusion v0.2 endpoint agent. It uses Vector 0.58.0's native `windows_event_log` source to read new events from `Microsoft-Windows-Sysmon/Operational`, selects Event IDs 1, 3, 7, 11, 13, and 22, and sends each event as JSON to the existing Fusion `/sysmon` receiver. It does not install or configure Sysmon.
 
 ## Prerequisites
 

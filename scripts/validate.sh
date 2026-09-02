@@ -55,7 +55,7 @@ sample_count=0
 if [ "$skip_samples" = false ]; then
   echo "[5/8] Sending v0.1 and Windows-agent-shaped Sysmon events..."
   event_time=$(date -u '+%Y-%m-%dT%H:%M:%S.000Z')
-  for sample in "$FUSION_ROOT"/samples/sysmon/*.json; do
+  for sample in "$FUSION_ROOT"/samples/sysmon/*.json "$FUSION_ROOT"/samples/windows-agent/*.json; do
     payload=$(sed -E \
       -e "s/\"UtcTime\": \"[^\"]+\"/\"UtcTime\": \"$event_time\"/g" \
       -e "s/\"timestamp\": \"[^\"]+\"/\"timestamp\": \"$event_time\"/g" \
@@ -71,28 +71,6 @@ if [ "$skip_samples" = false ]; then
     fi
     sample_count=$((sample_count + 1))
   done
-
-  batch_file=$(mktemp)
-  trap 'rm -f "$batch_file"' EXIT HUP INT TERM
-  for sample in "$FUSION_ROOT"/samples/windows-agent/*.json; do
-    sed -E \
-      -e "s/\"UtcTime\": \"[^\"]+\"/\"UtcTime\": \"$event_time\"/g" \
-      -e "s/\"timestamp\": \"[^\"]+\"/\"timestamp\": \"$event_time\"/g" \
-      "$sample" | tr -d '\r\n' >> "$batch_file"
-    printf '\n' >> "$batch_file"
-    sample_count=$((sample_count + 1))
-  done
-  status=$(curl -sS -o /dev/null -w '%{http_code}' \
-    -H 'Content-Type: application/x-ndjson' \
-    -H "X-Fusion-Validation-Id: $run_id" \
-    --data-binary "@$batch_file" \
-    "http://${FUSION_BIND_ADDRESS:-127.0.0.1}:${FUSION_INGEST_PORT:-8686}/sysmon")
-  rm -f "$batch_file"
-  trap - EXIT HUP INT TERM
-  if [ "$status" != "202" ]; then
-    echo "Vector rejected the Windows-agent NDJSON batch with HTTP $status." >&2
-    exit 1
-  fi
 else
   echo "[5/8] Sample ingestion skipped."
 fi
