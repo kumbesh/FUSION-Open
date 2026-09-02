@@ -409,7 +409,7 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "sql",
-          "rawSql": "SELECT if(destination_hostname = '', destination_ip, destination_hostname) AS destination, count() AS connections FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_id = 3 AND destination_ip != '' AND destination_ip NOT IN ('0.0.0.0', '127.0.0.1', '::1') AND NOT startsWith(destination_ip, '10.') AND NOT startsWith(destination_ip, '192.168.') AND NOT match(destination_ip, '^172\\.(1[6-9]|2[0-9]|3[01])\\.') AND NOT startsWith(destination_ip, '169.254.') AND NOT startsWith(lower(destination_ip), 'fe80:') AND NOT startsWith(lower(destination_ip), 'fc') AND NOT startsWith(lower(destination_ip), 'fd') AND match(computer, '${computer:regex}') GROUP BY destination ORDER BY connections DESC LIMIT 10",
+          "rawSql": "SELECT if(destination_hostname IN ('', '-'), destination_ip, destination_hostname) AS destination, count() AS connections FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_id = 3 AND destination_ip != '' AND destination_ip NOT IN ('0.0.0.0', '127.0.0.1', '::1') AND NOT startsWith(destination_ip, '10.') AND NOT startsWith(destination_ip, '192.168.') AND NOT match(destination_ip, '^172\\.(1[6-9]|2[0-9]|3[01])\\.') AND NOT startsWith(destination_ip, '169.254.') AND NOT startsWith(lower(destination_ip), 'fe80:') AND NOT startsWith(lower(destination_ip), 'fc') AND NOT startsWith(lower(destination_ip), 'fd') AND match(computer, '${computer:regex}') GROUP BY destination ORDER BY connections DESC LIMIT 10",
           "refId": "A"
         }
       ],
