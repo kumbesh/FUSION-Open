@@ -1,0 +1,28 @@
+{
+  "channel": "Microsoft-Windows-Sysmon/Operational",
+  "computer": "WINDOWS-LAB",
+  "event_data": {
+    "CommandLine": "cmd.exe /c whoami",
+    "Company": "Microsoft Corporation",
+    "CurrentDirectory": "C:\\Windows\\System32\\",
+    "Hashes": "SHA256=6A09E667BB67AE8583C6EF372FE94F82A54FF53A5F1D36F1C5E2B6A8E3D3B7A1",
+    "Image": "C:\\Windows\\System32\\cmd.exe",
+    "IntegrityLevel": "High",
+    "ParentCommandLine": "powershell.exe -NoProfile",
+    "ParentImage": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    "ProcessGuid": "{11111111-2222-3333-4444-000000000001}",
+    "ProcessId": "4312",
+    "RuleName": "-",
+    "TerminalSessionId": "1",
+    "User": "WINDOWS-LAB\\analyst",
+    "UtcTime": "2026-09-02 10:02:00.123"
+  },
+  "event_id": 1,
+  "level": "Informational",
+  "message": "Process Create",
+  "provider_name": "Microsoft-Windows-Sysmon",
+  "record_id": 1001,
+  "source_type": "windows_event_log",
+  "timestamp": "2026-09-02T10:02:00.123Z",
+  "xml": "<Event><System><Provider Name=\"Microsoft-Windows-Sysmon\"/><EventID>1</EventID></System><EventData><Data Name=\"Image\">C:\\Windows\\System32\\cmd.exe</Data></EventData></Event>"
+}

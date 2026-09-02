@@ -53,3 +53,14 @@ fusion_load_env() {
   set +a
 }
 
+fusion_apply_migrations() {
+  fusion_load_env
+  for migration in "$FUSION_ROOT"/clickhouse/migrations/*.sql; do
+    if [ ! -f "$migration" ]; then
+      continue
+    fi
+    echo "Applying ClickHouse migration $(basename "$migration")..."
+    fusion_compose exec -T clickhouse clickhouse-client \
+      --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --multiquery < "$migration"
+  done
+}

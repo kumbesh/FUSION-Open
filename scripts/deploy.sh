@@ -24,7 +24,12 @@ if [ "$skip_pull" = false ]; then
   fusion_compose pull
 fi
 
+echo "Starting ClickHouse..."
+fusion_compose up --detach --wait --wait-timeout 300 clickhouse
+fusion_apply_migrations
+
 echo "Starting Fusion..."
+fusion_compose up --detach --force-recreate --no-deps vector grafana
 fusion_compose up --detach --wait --wait-timeout 300 --remove-orphans
 
 if [ "$skip_validate" = false ]; then
@@ -34,5 +39,7 @@ fi
 fusion_load_env
 echo "Fusion is ready."
 echo "Grafana: http://localhost:${FUSION_GRAFANA_PORT:-3000}"
-echo "Ingest: http://localhost:${FUSION_INGEST_PORT:-8686}/sysmon"
-
+echo "Ingest: http://${FUSION_BIND_ADDRESS:-127.0.0.1}:${FUSION_INGEST_PORT:-8686}/sysmon"
+if [ "${FUSION_BIND_ADDRESS:-127.0.0.1}" != "127.0.0.1" ]; then
+  echo "WARNING: Ingestion has no TLS or authentication. Restrict TCP ${FUSION_INGEST_PORT:-8686} to the isolated test VM or lab subnet." >&2
+fi

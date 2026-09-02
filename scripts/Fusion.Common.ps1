@@ -73,3 +73,22 @@ function Assert-FusionEngine {
         throw "Docker is installed but the engine is not running. Start Docker Desktop and try again."
     }
 }
+
+function Invoke-FusionMigrations {
+    $migrationDirectory = Join-Path $script:FusionRoot "clickhouse\migrations"
+    if (-not (Test-Path -LiteralPath $migrationDirectory)) {
+        return
+    }
+
+    $settings = Get-FusionSettings
+    $docker = Get-FusionDocker
+    $migrations = Get-ChildItem -LiteralPath $migrationDirectory -Filter "*.sql" | Sort-Object Name
+    foreach ($migration in $migrations) {
+        Write-Host "Applying ClickHouse migration $($migration.Name)..."
+        $sql = [IO.File]::ReadAllText($migration.FullName)
+        $sql | & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --multiquery
+        if ($LASTEXITCODE -ne 0) {
+            throw "ClickHouse migration $($migration.Name) failed."
+        }
+    }
+}

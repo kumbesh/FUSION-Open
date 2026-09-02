@@ -1,0 +1,31 @@
+{
+  "channel": "Microsoft-Windows-Sysmon/Operational",
+  "computer": "WINDOWS-LAB",
+  "event_data": {
+    "DestinationHostname": "one.one.one.one",
+    "DestinationIp": "1.1.1.1",
+    "DestinationIsIpv6": "false",
+    "DestinationPort": "443",
+    "DestinationPortName": "https",
+    "Image": "C:\\Windows\\System32\\curl.exe",
+    "Initiated": "true",
+    "ProcessGuid": "{11111111-2222-3333-4444-000000000003}",
+    "ProcessId": "5120",
+    "Protocol": "tcp",
+    "RuleName": "-",
+    "SourceHostname": "WINDOWS-LAB",
+    "SourceIp": "10.10.10.25",
+    "SourceIsIpv6": "false",
+    "SourcePort": "51432",
+    "User": "WINDOWS-LAB\\analyst",
+    "UtcTime": "2026-09-02 10:03:00.123"
+  },
+  "event_id": 3,
+  "level": "Informational",
+  "message": "Network connection detected",
+  "provider_name": "Microsoft-Windows-Sysmon",
+  "record_id": 1002,
+  "source_type": "windows_event_log",
+  "timestamp": "2026-09-02T10:03:00.123Z",
+  "xml": "<Event><System><Provider Name=\"Microsoft-Windows-Sysmon\"/><EventID>3</EventID></System><EventData><Data Name=\"DestinationIp\">1.1.1.1</Data></EventData></Event>"
+}

@@ -15,7 +15,9 @@ sources:
     headers:
       - X-Fusion-Validation-Id
     framing:
-      method: bytes
+      method: newline_delimited
+      newline_delimited:
+        max_length: 2097152
     decoding:
       codec: json
 
@@ -32,7 +34,7 @@ transforms:
       event_id_raw = .Event.System.EventID || .event.System.EventID || .winlog.event_id || .event_id || .event.code || 0
       event_id = to_int(event_id_raw) ?? 0
 
-      source_time_raw = .Event.EventData.UtcTime || .event.EventData.UtcTime || .winlog.event_data.UtcTime || .event_data.UtcTime || .Event.System.TimeCreated.SystemTime || .event.System.TimeCreated.SystemTime || ."@timestamp" || .timestamp
+      source_time_raw = ."@timestamp" || .timestamp || .Event.EventData.UtcTime || .event.EventData.UtcTime || .winlog.event_data.UtcTime || .event_data.UtcTime || .Event.System.TimeCreated.SystemTime || .event.System.TimeCreated.SystemTime
       source_time_text = to_string(source_time_raw) ?? ""
       event_time = parse_timestamp(source_time_text, format: "%+") ?? now()
 
@@ -40,6 +42,14 @@ transforms:
         "process_create"
       } else if event_id == 3 {
         "network_connect"
+      } else if event_id == 7 {
+        "image_load"
+      } else if event_id == 11 {
+        "file_create"
+      } else if event_id == 13 {
+        "registry_value_set"
+      } else if event_id == 22 {
+        "dns_query"
       } else if event_id == 4104 {
         "powershell_script"
       } else {
@@ -48,6 +58,10 @@ transforms:
 
       channel_raw = .Event.System.Channel || .event.System.Channel || .winlog.channel || .channel || "Microsoft-Windows-Sysmon/Operational"
       channel = to_string(channel_raw) ?? ""
+      provider_name_raw = .Event.System.Provider.Name || .event.System.Provider.Name || .winlog.provider_name || .provider_name || ""
+      provider_name = to_string(provider_name_raw) ?? ""
+      record_id_raw = .Event.System.EventRecordID || .event.System.EventRecordID || .winlog.record_id || .record_id || 0
+      record_id = to_int(record_id_raw) ?? 0
       computer_raw = .Event.System.Computer || .event.System.Computer || .host.name || .computer || "unknown"
       computer = to_string(computer_raw) ?? "unknown"
       user_raw = .Event.EventData.User || .event.EventData.User || .winlog.event_data.User || .event_data.User || .user.name || .user || ""
@@ -58,6 +72,8 @@ transforms:
       process_id = to_int(process_id_raw) ?? 0
       image_raw = .Event.EventData.Image || .event.EventData.Image || .winlog.event_data.Image || .event_data.Image || .process.executable || .image || ""
       image = to_string(image_raw) ?? ""
+      image_loaded_raw = .Event.EventData.ImageLoaded || .event.EventData.ImageLoaded || .winlog.event_data.ImageLoaded || .event_data.ImageLoaded || .image_loaded || ""
+      image_loaded = to_string(image_loaded_raw) ?? ""
       command_line_raw = .Event.EventData.CommandLine || .event.EventData.CommandLine || .winlog.event_data.CommandLine || .event_data.CommandLine || .process.command_line || .command_line || ""
       command_line = to_string(command_line_raw) ?? ""
       parent_image_raw = .Event.EventData.ParentImage || .event.EventData.ParentImage || .winlog.event_data.ParentImage || .event_data.ParentImage || .process.parent.executable || .parent_image || ""
@@ -76,6 +92,18 @@ transforms:
       destination_port = to_int(destination_port_raw) ?? 0
       destination_hostname_raw = .Event.EventData.DestinationHostname || .event.EventData.DestinationHostname || .winlog.event_data.DestinationHostname || .event_data.DestinationHostname || .destination.domain || .destination_hostname || ""
       destination_hostname = to_string(destination_hostname_raw) ?? ""
+      query_name_raw = .Event.EventData.QueryName || .event.EventData.QueryName || .winlog.event_data.QueryName || .event_data.QueryName || .dns.question.name || .query_name || ""
+      query_name = to_string(query_name_raw) ?? ""
+      query_status_raw = .Event.EventData.QueryStatus || .event.EventData.QueryStatus || .winlog.event_data.QueryStatus || .event_data.QueryStatus || .query_status || ""
+      query_status = to_string(query_status_raw) ?? ""
+      query_results_raw = .Event.EventData.QueryResults || .event.EventData.QueryResults || .winlog.event_data.QueryResults || .event_data.QueryResults || .query_results || ""
+      query_results = to_string(query_results_raw) ?? ""
+      target_filename_raw = .Event.EventData.TargetFilename || .event.EventData.TargetFilename || .winlog.event_data.TargetFilename || .event_data.TargetFilename || .file.path || .target_filename || ""
+      target_filename = to_string(target_filename_raw) ?? ""
+      target_object_raw = .Event.EventData.TargetObject || .event.EventData.TargetObject || .winlog.event_data.TargetObject || .event_data.TargetObject || .registry.path || .target_object || ""
+      target_object = to_string(target_object_raw) ?? ""
+      registry_details_raw = .Event.EventData.Details || .event.EventData.Details || .winlog.event_data.Details || .event_data.Details || .registry.data.strings || .registry_details || ""
+      registry_details = to_string(registry_details_raw) ?? ""
       protocol_raw = .Event.EventData.Protocol || .event.EventData.Protocol || .winlog.event_data.Protocol || .event_data.Protocol || .network.transport || .protocol || ""
       protocol = downcase(to_string(protocol_raw) ?? "")
       initiated_raw = .Event.EventData.Initiated || .event.EventData.Initiated || .winlog.event_data.Initiated || .event_data.Initiated || .initiated || false
@@ -85,6 +113,8 @@ transforms:
       hashes = to_string(hashes_raw) ?? ""
       rule_name_raw = .Event.EventData.RuleName || .event.EventData.RuleName || .winlog.event_data.RuleName || .event_data.RuleName || .rule_name || ""
       rule_name = to_string(rule_name_raw) ?? ""
+      message_raw = .message || .Message || ""
+      message = to_string(message_raw) ?? ""
       validation_id_raw = ."X-Fusion-Validation-Id" || ."x-fusion-validation-id" || .validation_id || ""
       validation_id = to_string(validation_id_raw) ?? ""
 
@@ -93,11 +123,14 @@ transforms:
         "event_id": event_id,
         "event_type": event_type,
         "channel": channel,
+        "provider_name": provider_name,
+        "record_id": record_id,
         "computer": computer,
         "user": user,
         "process_guid": process_guid,
         "process_id": process_id,
         "image": image,
+        "image_loaded": image_loaded,
         "command_line": command_line,
         "parent_image": parent_image,
         "parent_command_line": parent_command_line,
@@ -107,10 +140,17 @@ transforms:
         "destination_ip": destination_ip,
         "destination_port": destination_port,
         "destination_hostname": destination_hostname,
+        "query_name": query_name,
+        "query_status": query_status,
+        "query_results": query_results,
+        "target_filename": target_filename,
+        "target_object": target_object,
+        "registry_details": registry_details,
         "protocol": protocol,
         "initiated": initiated_value,
         "hashes": hashes,
         "rule_name": rule_name,
+        "message": message,
         "validation_id": validation_id,
         "raw_json": encode_json(original)
       }
@@ -195,3 +235,122 @@ tests:
         conditions:
           - type: vrl
             source: '.event_type == "network_connect" && .destination_port == 443 && .destination_ip == "1.1.1.1"'
+
+  - name: normalize_windows_agent_process_create
+    inputs:
+      - insert_at: normalize_sysmon
+        type: log
+        log_fields:
+          source_type: windows_event_log
+          timestamp: "2026-09-02T10:02:00.123Z"
+          channel: Microsoft-Windows-Sysmon/Operational
+          computer: WINDOWS-LAB
+          provider_name: Microsoft-Windows-Sysmon
+          record_id: 1001
+          event_id: 1
+          event_data:
+            Image: 'C:\Windows\System32\cmd.exe'
+            CommandLine: 'cmd.exe /c whoami'
+            ProcessId: "4312"
+          xml: '<Event><System><EventID>1</EventID></System></Event>'
+    outputs:
+      - extract_from: normalize_sysmon
+        conditions:
+          - type: vrl
+            source: '.event_id == 1 && .event_type == "process_create" && .event_time == "2026-09-02 10:02:00.123" && .computer == "WINDOWS-LAB" && .record_id == 1001 && contains(to_string(.raw_json) ?? "", "windows_event_log") && contains(to_string(.raw_json) ?? "", "xml")'
+
+  - name: normalize_windows_agent_network_connection
+    inputs:
+      - insert_at: normalize_sysmon
+        type: log
+        log_fields:
+          source_type: windows_event_log
+          timestamp: "2026-09-02T10:03:00.123Z"
+          channel: Microsoft-Windows-Sysmon/Operational
+          computer: WINDOWS-LAB
+          event_id: 3
+          event_data:
+            Image: 'C:\Windows\System32\curl.exe'
+            SourceIp: 10.10.10.25
+            SourcePort: "51432"
+            DestinationIp: 1.1.1.1
+            DestinationHostname: one.one.one.one
+            DestinationPort: "443"
+            Protocol: tcp
+            Initiated: "true"
+    outputs:
+      - extract_from: normalize_sysmon
+        conditions:
+          - type: vrl
+            source: '.event_id == 3 && .event_type == "network_connect" && .destination_ip == "1.1.1.1" && .destination_port == 443 && .initiated == 1'
+
+  - name: normalize_windows_agent_dns_query
+    inputs:
+      - insert_at: normalize_sysmon
+        type: log
+        log_fields:
+          source_type: windows_event_log
+          timestamp: "2026-09-02T10:04:00.123Z"
+          channel: Microsoft-Windows-Sysmon/Operational
+          computer: WINDOWS-LAB
+          event_id: 22
+          event_data:
+            Image: 'C:\Windows\System32\nslookup.exe'
+            QueryName: example.com
+            QueryStatus: "0"
+            QueryResults: '93.184.216.34;'
+    outputs:
+      - extract_from: normalize_sysmon
+        conditions:
+          - type: vrl
+            source: '.event_id == 22 && .event_type == "dns_query" && .query_name == "example.com" && contains(to_string(.query_results) ?? "", "93.184.216.34")'
+
+  - name: normalize_windows_agent_image_load
+    inputs:
+      - insert_at: normalize_sysmon
+        type: log
+        log_fields:
+          timestamp: "2026-09-02T10:05:00.123Z"
+          event_id: 7
+          event_data:
+            Image: 'C:\Windows\System32\rundll32.exe'
+            ImageLoaded: 'C:\Windows\System32\version.dll'
+            Hashes: 'SHA256=example'
+    outputs:
+      - extract_from: normalize_sysmon
+        conditions:
+          - type: vrl
+            source: '.event_id == 7 && .event_type == "image_load" && .image_loaded == "C:\\Windows\\System32\\version.dll"'
+
+  - name: normalize_windows_agent_file_create
+    inputs:
+      - insert_at: normalize_sysmon
+        type: log
+        log_fields:
+          timestamp: "2026-09-02T10:06:00.123Z"
+          event_id: 11
+          event_data:
+            Image: 'C:\Windows\System32\notepad.exe'
+            TargetFilename: 'C:\Users\analyst\Documents\lab-note.txt'
+    outputs:
+      - extract_from: normalize_sysmon
+        conditions:
+          - type: vrl
+            source: '.event_id == 11 && .event_type == "file_create" && contains(to_string(.target_filename) ?? "", "lab-note.txt")'
+
+  - name: normalize_windows_agent_registry_value_set
+    inputs:
+      - insert_at: normalize_sysmon
+        type: log
+        log_fields:
+          timestamp: "2026-09-02T10:07:00.123Z"
+          event_id: 13
+          event_data:
+            Image: 'C:\Windows\regedit.exe'
+            TargetObject: 'HKCU\Software\FusionLab\Enabled'
+            Details: DWORD (0x00000001)
+    outputs:
+      - extract_from: normalize_sysmon
+        conditions:
+          - type: vrl
+            source: '.event_id == 13 && .event_type == "registry_value_set" && contains(to_string(.target_object) ?? "", "FusionLab") && .registry_details == "DWORD (0x00000001)"'

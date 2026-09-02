@@ -40,7 +40,7 @@ services:
       VECTOR_DANGEROUSLY_ALLOW_ENV_VAR_INTERPOLATION: "true"
       VECTOR_REQUIRE_HEALTHY: "true"
     ports:
-      - "127.0.0.1:${FUSION_INGEST_PORT:-8686}:8686"
+      - "${FUSION_BIND_ADDRESS:-127.0.0.1}:${FUSION_INGEST_PORT:-8686}:8686"
       - "127.0.0.1:${FUSION_VECTOR_API_PORT:-8687}:8687"
     volumes:
       - ./vector/vector.yaml:/etc/vector/vector.yaml:ro
@@ -105,4 +105,3 @@ volumes:
   clickhouse-logs:
   grafana-data:
   vector-data:
-

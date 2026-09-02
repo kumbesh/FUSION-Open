@@ -1,0 +1,22 @@
+{
+  "channel": "Microsoft-Windows-Sysmon/Operational",
+  "computer": "WINDOWS-LAB",
+  "event_data": {
+    "Image": "C:\\Windows\\System32\\nslookup.exe",
+    "ProcessGuid": "{11111111-2222-3333-4444-000000000016}",
+    "ProcessId": "6248",
+    "QueryName": "example.com",
+    "QueryResults": "93.184.216.34;",
+    "QueryStatus": "0",
+    "RuleName": "-",
+    "UtcTime": "2026-09-02 10:04:00.123"
+  },
+  "event_id": 22,
+  "level": "Informational",
+  "message": "Dns query",
+  "provider_name": "Microsoft-Windows-Sysmon",
+  "record_id": 1003,
+  "source_type": "windows_event_log",
+  "timestamp": "2026-09-02T10:04:00.123Z",
+  "xml": "<Event><System><Provider Name=\"Microsoft-Windows-Sysmon\"/><EventID>22</EventID></System><EventData><Data Name=\"QueryName\">example.com</Data></EventData></Event>"
+}

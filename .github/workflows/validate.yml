@@ -37,3 +37,27 @@ jobs:
         if: always()
         run: docker compose down --volumes --remove-orphans
 
+  validate-windows-agent:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Download and verify Vector 0.58.0 for Windows
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'vector-0.58.0-windows.zip'
+          Invoke-WebRequest `
+            -Uri 'https://github.com/vectordotdev/vector/releases/download/v0.58.0/vector-0.58.0-x86_64-pc-windows-msvc.zip' `
+            -OutFile $archive
+          $expected = '72bbedf4772302f7f67e7db2120fe5b42e39ae65873c895876fc2038050c10c5'
+          $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw "Vector archive checksum mismatch: $actual" }
+          Expand-Archive -LiteralPath $archive -DestinationPath (Join-Path $env:RUNNER_TEMP 'vector')
+
+      - name: Validate native Windows agent configuration
+        shell: pwsh
+        run: |
+          $vector = Get-ChildItem (Join-Path $env:RUNNER_TEMP 'vector') -Filter vector.exe -Recurse | Select-Object -First 1
+          .\agents\windows\test-config.ps1 -VectorExecutable $vector.FullName
