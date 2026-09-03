@@ -193,7 +193,7 @@ For detailed endpoint instructions and troubleshooting, see [agents/windows/READ
 
 ## Connect a Linux Endpoint
 
-Fusion v0.3 initially targets an Ubuntu 24.04 LTS lab endpoint using Vector 0.58.0's native `file` and `journald` sources. The configuration is validated in CI, but a real Ubuntu VM has not yet completed acceptance. The Linux agent reads new records from `/var/log/audit/audit.log` and selected SSH, sudo, su, systemd, and logind journal sources. It sends both streams to the existing collector on `POST /linux`; it does not create a second storage pipeline or schema.
+Fusion v0.3 initially targets Ubuntu 24.04 LTS using Vector 0.58.0's native `file` and `journald` sources. Ubuntu 24.04 remains the configuration/CI baseline; real endpoint acceptance was completed on an x86_64 Ubuntu 26.04 LTS VMware VM on 2026-09-03. The Linux agent reads new records from `/var/log/audit/audit.log` and selected SSH, sudo, su, systemd, and logind journal sources. It sends both streams to the existing collector on `POST /linux`; it does not create a second storage pipeline or schema.
 
 Fusion deliberately does **not** install, start, or modify auditd. On the Linux VM, verify the prerequisites first:
 
@@ -254,7 +254,7 @@ docker compose exec clickhouse clickhouse-client \
   --query "SELECT event_time, host_name, source_type, event_action, process_path, user_name, outcome FROM fusion.sysmon_events WHERE platform = 'linux' ORDER BY event_time DESC LIMIT 25"
 ```
 
-Open Grafana, choose `linux` in the **Platform** filter, and inspect Linux process, authentication, sudo, and source-type panels. The repository's Linux fixtures and automated tests prove parsing, routing, storage, migration, and dashboard query compatibility; they are synthetic validation and are **not** a claim that a real Linux endpoint has passed acceptance. Real-VM acceptance still requires installing the agent, generating telemetry, and confirming the stored rows and dashboard on that VM.
+Open Grafana, choose `linux` in the **Platform** filter, and inspect Linux process, authentication, sudo, and source-type panels. The repository's fixtures remain synthetic validation and are not substitutes for endpoint testing. Fusion v0.3 additionally passed the complete Ubuntu 26.04 VMware path—Linux VM, Vector agent, collector, normalization, ClickHouse, and Grafana—with real process, sudo, successful and failed SSH authentication, and systemd activity. Other distributions and architectures remain untested until separately accepted.
 
 Detailed audit prerequisites, LAB/TEST examples, agent paths, security controls, and troubleshooting are in [agents/linux/README.md](agents/linux/README.md).
 

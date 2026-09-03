@@ -1,12 +1,13 @@
 # Fusion Linux Vector agent
 
-This directory contains the repository-managed Vector 0.58.0 agent initially targeting Ubuntu 24.04 LTS. Its configuration and scripts are validated in CI, but real Ubuntu VM acceptance remains a manual v0.3 step. It reads new records from `/var/log/audit/audit.log` and the native systemd journal, then sends one JSON event per request to the existing Fusion collector at `/linux`.
+This directory contains the repository-managed Vector 0.58.0 agent initially targeting Ubuntu 24.04 LTS. The configuration and scripts are validated in CI on Ubuntu 24.04, and real endpoint acceptance was completed on an x86_64 Ubuntu 26.04 LTS VMware VM on 2026-09-03. It reads new records from `/var/log/audit/audit.log` and the native systemd journal, then sends one JSON event per request to the existing Fusion collector at `/linux`.
 
 The agent does **not** install, enable, or configure auditd. It does not change journald, SSH, sudo, PAM, or system audit policy.
 
 ## Prerequisites
 
-- Ubuntu 24.04 LTS on x86_64 or aarch64
+- Ubuntu 24.04 LTS on x86_64 or aarch64 as the configuration/CI target
+- Ubuntu 26.04 LTS on x86_64 as a real-endpoint-tested VMware target
 - systemd and `journalctl`
 - auditd already installed and active
 - `/var/log/audit/audit.log` present and readable by root
