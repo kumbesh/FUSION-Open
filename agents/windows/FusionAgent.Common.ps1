@@ -51,7 +51,7 @@ function Assert-FusionCollectorUrl {
         throw "CollectorUrl must have the exact /sysmon path and no query or fragment (for example, http://fusion-host:8686/sysmon)."
     }
     if ($CollectorUrl.UserInfo) {
-        throw "Do not put credentials in CollectorUrl. Fusion v0.2 ingestion does not implement authentication."
+        throw "Do not put credentials in CollectorUrl. Fusion ingestion does not implement authentication."
     }
 }
 

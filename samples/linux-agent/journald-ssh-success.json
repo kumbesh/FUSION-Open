@@ -1,0 +1,14 @@
+{
+  "source_platform": "linux",
+  "source_type": "linux_journald",
+  "host_name": "ubuntu-lab",
+  "host": "ubuntu-lab",
+  "timestamp": "2026-09-03T08:02:00.000Z",
+  "SYSLOG_IDENTIFIER": "sshd",
+  "_SYSTEMD_UNIT": "ssh.service",
+  "_COMM": "sshd",
+  "_EXE": "/usr/sbin/sshd",
+  "_PID": "2400",
+  "PRIORITY": "6",
+  "message": "Accepted publickey for analyst from 192.0.2.20 port 54321 ssh2: ED25519 SHA256:example"
+}

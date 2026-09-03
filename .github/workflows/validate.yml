@@ -61,3 +61,41 @@ jobs:
         run: |
           $vector = Get-ChildItem (Join-Path $env:RUNNER_TEMP 'vector') -Filter vector.exe -Recurse | Select-Object -First 1
           .\agents\windows\test-config.ps1 -VectorExecutable $vector.FullName
+
+  validate-linux-agent:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Check Linux agent shell scripts
+        run: |
+          for script in agents/linux/*.sh; do sh -n "$script"; done
+          shellcheck agents/linux/*.sh
+
+      - name: Download and verify Vector 0.58.0 for Linux
+        run: |
+          archive="$RUNNER_TEMP/vector-0.58.0-x86_64-unknown-linux-gnu.tar.gz"
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            --output "$archive" \
+            'https://github.com/vectordotdev/vector/releases/download/v0.58.0/vector-0.58.0-x86_64-unknown-linux-gnu.tar.gz'
+          printf '%s  %s\n' \
+            'a4634bea859a7ad7064ff3dd6f6ad7eb0e8dd4493cc41657d84da8dd66f09d09' \
+            "$archive" | sha256sum --check --status
+          mkdir "$RUNNER_TEMP/vector-linux"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/vector-linux"
+
+      - name: Validate native Linux agent configuration
+        run: |
+          vector=$(find "$RUNNER_TEMP/vector-linux" -type f -path '*/bin/vector' -print -quit)
+          agents/linux/test-config.sh "$vector"
+
+      - name: Validate hardened systemd service
+        run: |
+          unit="$RUNNER_TEMP/fusion-vector-agent.service"
+          sed \
+            -e 's|^ExecStartPre=.*|ExecStartPre=/bin/true|' \
+            -e 's|^ExecStart=.*|ExecStart=/bin/true|' \
+            agents/linux/fusion-vector-agent.service > "$unit"
+          systemd-analyze verify "$unit"

@@ -37,11 +37,29 @@ CREATE TABLE IF NOT EXISTS fusion.sysmon_events
     message String,
     validation_id String,
     raw_json String,
+    host_name LowCardinality(String) DEFAULT computer,
+    platform LowCardinality(String) DEFAULT if(event_id > 0, 'windows', 'unknown'),
+    source_type LowCardinality(String) DEFAULT if(event_id > 0, 'windows_sysmon', 'unknown'),
+    event_category LowCardinality(String) DEFAULT event_type,
+    event_action LowCardinality(String) DEFAULT event_type,
+    event_code String DEFAULT if(event_id > 0, toString(event_id), ''),
+    source_event_id String DEFAULT toString(record_id),
+    user_name String DEFAULT user,
+    user_id String,
+    process_name String DEFAULT image,
+    process_path String DEFAULT image,
+    parent_process_name String DEFAULT parent_image,
+    parent_process_id UInt32,
+    service_name String,
+    outcome LowCardinality(String),
+    severity LowCardinality(String),
     INDEX image_token_idx lower(image) TYPE tokenbf_v1(10240, 3, 0) GRANULARITY 4,
     INDEX command_token_idx lower(command_line) TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 4,
     INDEX destination_ip_idx destination_ip TYPE bloom_filter(0.01) GRANULARITY 4,
     INDEX query_name_idx lower(query_name) TYPE tokenbf_v1(10240, 3, 0) GRANULARITY 4,
-    INDEX target_filename_idx lower(target_filename) TYPE tokenbf_v1(10240, 3, 0) GRANULARITY 4
+    INDEX target_filename_idx lower(target_filename) TYPE tokenbf_v1(10240, 3, 0) GRANULARITY 4,
+    INDEX process_path_token_idx lower(process_path) TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 4,
+    INDEX source_type_set_idx source_type TYPE set(100) GRANULARITY 4
 )
 ENGINE = MergeTree
 PARTITION BY toYYYYMM(event_time)

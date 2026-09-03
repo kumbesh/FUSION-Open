@@ -1,0 +1,10 @@
+{
+  "source_platform": "linux",
+  "source_type": "linux_auditd",
+  "host_name": "ubuntu-lab",
+  "host": "ubuntu-lab",
+  "timestamp": "2026-09-03T08:01:00.000Z",
+  "file": "/var/log/audit/audit.log",
+  "offset": 2048,
+  "message": "type=USER_CMD msg=audit(1788422460.250:4202): pid=2300 uid=1000 auid=1000 acct=\"analyst\" exe=\"/usr/bin/sudo\" cmd=\"/usr/bin/id\" res=success"
+}

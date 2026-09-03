@@ -34,7 +34,8 @@ $settings = Get-FusionSettings
 $bindAddress = if ($settings.ContainsKey("FUSION_BIND_ADDRESS") -and $settings.FUSION_BIND_ADDRESS) { $settings.FUSION_BIND_ADDRESS } else { "127.0.0.1" }
 Write-Host "Fusion is ready."
 Write-Host "Grafana: http://localhost:$($settings.FUSION_GRAFANA_PORT)"
-Write-Host "Ingest: http://$bindAddress`:$($settings.FUSION_INGEST_PORT)/sysmon"
+Write-Host "Windows ingest: http://$bindAddress`:$($settings.FUSION_INGEST_PORT)/sysmon"
+Write-Host "Linux ingest:   http://$bindAddress`:$($settings.FUSION_INGEST_PORT)/linux"
 if ($bindAddress -ne "127.0.0.1") {
     Write-Warning "Ingestion is reachable beyond localhost and has no TLS or authentication. Restrict TCP $($settings.FUSION_INGEST_PORT) to the isolated test VM or lab subnet."
 }

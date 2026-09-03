@@ -60,7 +60,7 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "sql",
-          "rawSql": "SELECT count() AS Events FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND match(computer, '${computer:regex}')",
+          "rawSql": "SELECT count() AS Events FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}')",
           "refId": "A"
         }
       ],
@@ -98,7 +98,7 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "sql",
-          "rawSql": "SELECT count() AS ProcessCreations FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_id = 1 AND match(computer, '${computer:regex}')",
+          "rawSql": "SELECT count() AS ProcessCreations FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_id = 1 AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}')",
           "refId": "A"
         }
       ],
@@ -136,7 +136,7 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "sql",
-          "rawSql": "SELECT count() AS PowerShellExecutions FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_id = 1 AND (positionCaseInsensitiveUTF8(image, 'powershell.exe') > 0 OR positionCaseInsensitiveUTF8(image, 'pwsh.exe') > 0) AND match(computer, '${computer:regex}')",
+          "rawSql": "SELECT count() AS PowerShellExecutions FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_id = 1 AND (positionCaseInsensitiveUTF8(image, 'powershell.exe') > 0 OR positionCaseInsensitiveUTF8(image, 'pwsh.exe') > 0) AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}')",
           "refId": "A"
         }
       ],
@@ -174,7 +174,7 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "sql",
-          "rawSql": "SELECT count() AS NetworkConnections FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_id = 3 AND match(computer, '${computer:regex}')",
+          "rawSql": "SELECT count() AS NetworkConnections FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_id = 3 AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}')",
           "refId": "A"
         }
       ],
@@ -225,7 +225,7 @@
           "editorType": "sql",
           "format": 0,
           "queryType": "sql",
-          "rawSql": "SELECT $__timeInterval(event_time) AS time, event_type, count() AS events FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND match(computer, '${computer:regex}') GROUP BY time, event_type ORDER BY time",
+          "rawSql": "SELECT $__timeInterval(event_time) AS time, event_type, count() AS events FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') GROUP BY time, event_type ORDER BY time",
           "refId": "A"
         }
       ],
@@ -271,7 +271,7 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "sql",
-          "rawSql": "SELECT if(destination_hostname = '', destination_ip, destination_hostname) AS destination, count() AS connections FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_id = 3 AND match(computer, '${computer:regex}') GROUP BY destination ORDER BY connections DESC LIMIT 10",
+          "rawSql": "SELECT if(destination_hostname = '', destination_ip, destination_hostname) AS destination, count() AS connections FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_id = 3 AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') GROUP BY destination ORDER BY connections DESC LIMIT 10",
           "refId": "A"
         }
       ],
@@ -317,7 +317,7 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "sql",
-          "rawSql": "SELECT query_name AS query, count() AS queries FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_id = 22 AND query_name != '' AND match(computer, '${computer:regex}') GROUP BY query_name ORDER BY queries DESC LIMIT 10",
+          "rawSql": "SELECT query_name AS query, count() AS queries FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_id = 22 AND query_name != '' AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') GROUP BY query_name ORDER BY queries DESC LIMIT 10",
           "refId": "A"
         }
       ],
@@ -363,7 +363,7 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "sql",
-          "rawSql": "SELECT image, count() AS executions FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_id = 1 AND image != '' AND match(computer, '${computer:regex}') GROUP BY image ORDER BY executions DESC LIMIT 10",
+          "rawSql": "SELECT image, count() AS executions FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_id = 1 AND image != '' AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') GROUP BY image ORDER BY executions DESC LIMIT 10",
           "refId": "A"
         }
       ],
@@ -409,7 +409,7 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "sql",
-          "rawSql": "SELECT if(destination_hostname IN ('', '-'), destination_ip, destination_hostname) AS destination, count() AS connections FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_id = 3 AND destination_ip != '' AND destination_ip NOT IN ('0.0.0.0', '127.0.0.1', '::1') AND NOT startsWith(destination_ip, '10.') AND NOT startsWith(destination_ip, '192.168.') AND NOT match(destination_ip, '^172\\.(1[6-9]|2[0-9]|3[01])\\.') AND NOT startsWith(destination_ip, '169.254.') AND NOT startsWith(lower(destination_ip), 'fe80:') AND NOT startsWith(lower(destination_ip), 'fc') AND NOT startsWith(lower(destination_ip), 'fd') AND match(computer, '${computer:regex}') GROUP BY destination ORDER BY connections DESC LIMIT 10",
+          "rawSql": "SELECT if(destination_hostname IN ('', '-'), destination_ip, destination_hostname) AS destination, count() AS connections FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_id = 3 AND destination_ip != '' AND destination_ip NOT IN ('0.0.0.0', '127.0.0.1', '::1') AND NOT startsWith(destination_ip, '10.') AND NOT startsWith(destination_ip, '192.168.') AND NOT match(destination_ip, '^172\\.(1[6-9]|2[0-9]|3[01])\\.') AND NOT startsWith(destination_ip, '169.254.') AND NOT startsWith(lower(destination_ip), 'fe80:') AND NOT startsWith(lower(destination_ip), 'fc') AND NOT startsWith(lower(destination_ip), 'fd') AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') GROUP BY destination ORDER BY connections DESC LIMIT 10",
           "refId": "A"
         }
       ],
@@ -455,7 +455,7 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "sql",
-          "rawSql": "SELECT toString(event_id) AS event_id, count() AS events FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND match(computer, '${computer:regex}') GROUP BY event_id ORDER BY events DESC",
+          "rawSql": "SELECT toString(event_id) AS event_id, count() AS events FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') GROUP BY event_id ORDER BY events DESC",
           "refId": "A"
         }
       ],
@@ -492,7 +492,7 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "sql",
-          "rawSql": "SELECT event_time AS Time, computer AS Host, user AS User, image AS Image, process_id AS PID, command_line AS CommandLine, parent_image AS ParentImage FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_id = 1 AND match(computer, '${computer:regex}') ORDER BY event_time DESC LIMIT 200",
+          "rawSql": "SELECT event_time AS Time, host_name AS Host, user_name AS User, process_path AS Image, process_id AS PID, command_line AS CommandLine, parent_process_name AS ParentImage FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_id = 1 AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') ORDER BY event_time DESC LIMIT 200",
           "refId": "A"
         }
       ],
@@ -529,7 +529,7 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "sql",
-          "rawSql": "SELECT event_time AS Time, computer AS Host, user AS User, image AS Image, command_line AS CommandLine, parent_image AS ParentImage FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_id = 1 AND (positionCaseInsensitiveUTF8(image, 'powershell.exe') > 0 OR positionCaseInsensitiveUTF8(image, 'pwsh.exe') > 0) AND match(computer, '${computer:regex}') ORDER BY event_time DESC LIMIT 200",
+          "rawSql": "SELECT event_time AS Time, host_name AS Host, user_name AS User, process_path AS Image, command_line AS CommandLine, parent_process_name AS ParentImage FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_id = 1 AND (positionCaseInsensitiveUTF8(image, 'powershell.exe') > 0 OR positionCaseInsensitiveUTF8(image, 'pwsh.exe') > 0) AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') ORDER BY event_time DESC LIMIT 200",
           "refId": "A"
         }
       ],
@@ -566,11 +566,88 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "sql",
-          "rawSql": "SELECT event_time AS Time, computer AS Host, image AS Image, source_ip AS SourceIP, source_port AS SourcePort, destination_ip AS DestinationIP, destination_port AS DestinationPort, destination_hostname AS DestinationHost, protocol AS Protocol FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_id = 3 AND match(computer, '${computer:regex}') ORDER BY event_time DESC LIMIT 200",
+          "rawSql": "SELECT event_time AS Time, host_name AS Host, process_path AS Image, source_ip AS SourceIP, source_port AS SourcePort, destination_ip AS DestinationIP, destination_port AS DestinationPort, destination_hostname AS DestinationHost, protocol AS Protocol FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_id = 3 AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') ORDER BY event_time DESC LIMIT 200",
           "refId": "A"
         }
       ],
       "title": "Network connections",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "description": "All stored security events grouped by normalized endpoint platform.",
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 42 },
+      "id": 14,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT platform, count() AS events FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') GROUP BY platform ORDER BY events DESC", "refId": "A" }],
+      "title": "Events by platform",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "description": "Most frequently executed Linux process paths from auditd telemetry.",
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 42 },
+      "id": 15,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT process_path, count() AS executions FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND platform = 'linux' AND event_action = 'process_execute' AND process_path != '' AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') GROUP BY process_path ORDER BY executions DESC LIMIT 10", "refId": "A" }],
+      "title": "Top Linux executed processes",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "description": "Stored event volume from Windows Sysmon, Linux auditd, and Linux journald.",
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 42 },
+      "id": 16,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT source_type, count() AS events FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') GROUP BY source_type ORDER BY events DESC", "refId": "A" }],
+      "title": "Events by source type",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "description": "Normalized Linux authentication failures in the selected time range.",
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 50 },
+      "id": 17,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT count() AS FailedAuthentications FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND platform = 'linux' AND event_category = 'authentication' AND outcome = 'failure' AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}')", "refId": "A" }],
+      "title": "Failed authentication attempts",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "description": "Linux authentication activity over time, split by normalized outcome.",
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 1, "showPoints": "never", "stacking": { "group": "A", "mode": "normal" } } }, "overrides": [] },
+      "gridPos": { "h": 9, "w": 18, "x": 6, "y": 50 },
+      "id": 18,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [{ "editorType": "sql", "format": 0, "queryType": "sql", "rawSql": "SELECT $__timeInterval(event_time) AS time, outcome, count() AS events FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND platform = 'linux' AND event_category = 'authentication' AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') GROUP BY time, outcome ORDER BY time", "refId": "A" }],
+      "title": "Authentication activity",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "description": "Recent normalized sudo commands from auditd or journald.",
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "filterable": true } }, "overrides": [] },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 59 },
+      "id": 19,
+      "options": { "cellHeight": "sm", "footer": { "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "Time" }] },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT event_time AS Time, host_name AS Host, user_name AS User, command_line AS CommandLine, outcome AS Outcome, source_type AS Source FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND platform = 'linux' AND event_action = 'sudo_command' AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') ORDER BY event_time DESC LIMIT 200", "refId": "A" }],
+      "title": "sudo activity",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "description": "Recent Linux process executions normalized from auditd records.",
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "filterable": true } }, "overrides": [] },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 59 },
+      "id": 20,
+      "options": { "cellHeight": "sm", "footer": { "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "Time" }] },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT event_time AS Time, host_name AS Host, if(user_name = '', user_id, user_name) AS User, process_path AS Process, process_id AS PID, parent_process_id AS ParentPID, command_line AS CommandLine, outcome AS Outcome FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND platform = 'linux' AND event_action = 'process_execute' AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') ORDER BY event_time DESC LIMIT 200", "refId": "A" }],
+      "title": "Linux process executions",
       "type": "table"
     }
   ],
@@ -587,13 +664,29 @@
           "type": "grafana-clickhouse-datasource",
           "uid": "fusion-clickhouse"
         },
-        "definition": "SELECT DISTINCT computer FROM fusion.sysmon_events ORDER BY computer",
+        "definition": "SELECT DISTINCT host_name FROM fusion.sysmon_events WHERE host_name != '' ORDER BY host_name",
         "includeAll": true,
-        "label": "Computer",
+        "label": "Host",
         "multi": true,
         "name": "computer",
         "options": [],
-        "query": "SELECT DISTINCT computer FROM fusion.sysmon_events ORDER BY computer",
+        "query": "SELECT DISTINCT host_name FROM fusion.sysmon_events WHERE host_name != '' ORDER BY host_name",
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": { "text": "All", "value": "$__all" },
+        "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+        "definition": "SELECT DISTINCT platform FROM fusion.sysmon_events WHERE platform != '' ORDER BY platform",
+        "includeAll": true,
+        "label": "Platform",
+        "multi": true,
+        "name": "platform",
+        "options": [],
+        "query": "SELECT DISTINCT platform FROM fusion.sysmon_events WHERE platform != '' ORDER BY platform",
         "refresh": 2,
         "regex": "",
         "sort": 1,
@@ -609,6 +702,6 @@
   "timezone": "browser",
   "title": "Fusion Security Overview",
   "uid": "fusion-security-overview",
-  "version": 2,
+  "version": 3,
   "weekStart": ""
 }

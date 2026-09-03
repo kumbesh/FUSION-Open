@@ -1,0 +1,108 @@
+data_dir: '__FUSION_DATA_DIR__'
+
+sources:
+  auditd:
+    type: file
+    include:
+      - /var/log/audit/audit.log
+    read_from: end
+    ignore_not_found: false
+    host_key: host
+    file_key: file
+    offset_key: offset
+    max_line_bytes: 1048576
+    multiline:
+      start_pattern: '^type=(SYSCALL|EXECVE|USER_CMD|USER_LOGIN|USER_AUTH|USER_ACCT|CRED_ACQ|CRED_DISP) '
+      mode: halt_with
+      condition_pattern: '^type=EOE '
+      timeout_ms: 1000
+
+  security_journal:
+    type: journald
+    current_boot_only: true
+    since_now: true
+    data_dir: '__FUSION_JOURNAL_DATA_DIR__'
+    journalctl_path: '__FUSION_JOURNALCTL_PATH__'
+    include_matches:
+      _SYSTEMD_UNIT:
+        - ssh.service
+        - sshd.service
+        - systemd-logind.service
+        - systemd-user-sessions.service
+        - init.scope
+      SYSLOG_IDENTIFIER:
+        - ssh
+        - sshd
+        - sudo
+        - su
+        - systemd
+        - systemd-logind
+        - login
+      _COMM:
+        - ssh
+        - sshd
+        - sudo
+        - su
+        - systemd
+        - systemd-logind
+        - login
+
+  vector_internal_logs:
+    type: internal_logs
+
+transforms:
+  tag_auditd:
+    type: remap
+    inputs:
+      - auditd
+    source: |-
+      .source_platform = "linux"
+      .source_type = "linux_auditd"
+      .host_name = to_string(.host) ?? get_hostname!()
+
+  tag_journald:
+    type: remap
+    inputs:
+      - security_journal
+    source: |-
+      .source_platform = "linux"
+      .source_type = "linux_journald"
+      .host_name = to_string(._HOSTNAME) ?? to_string(.host) ?? get_hostname!()
+
+sinks:
+  fusion_collector:
+    type: http
+    inputs:
+      - tag_auditd
+      - tag_journald
+    uri: '__FUSION_COLLECTOR_URL__'
+    method: post
+    compression: none
+    framing:
+      method: bytes
+    encoding:
+      codec: json
+    batch:
+      max_events: 1
+      max_bytes: 1048576
+      timeout_secs: 1
+    buffer:
+      type: disk
+      max_size: 268435488
+      when_full: block
+    acknowledgements:
+      enabled: true
+    healthcheck:
+      enabled: false
+    request:
+      retry_attempts: 10
+      retry_initial_backoff_secs: 1
+      retry_max_duration_secs: 30
+
+  local_agent_logs:
+    type: file
+    inputs:
+      - vector_internal_logs
+    path: '__FUSION_LOG_DIR__/vector-%Y-%m-%d.log'
+    encoding:
+      codec: json

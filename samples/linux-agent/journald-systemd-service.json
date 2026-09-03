@@ -1,0 +1,13 @@
+{
+  "source_platform": "linux",
+  "source_type": "linux_journald",
+  "host_name": "ubuntu-lab",
+  "host": "ubuntu-lab",
+  "timestamp": "2026-09-03T08:04:00.000Z",
+  "SYSLOG_IDENTIFIER": "systemd",
+  "_SYSTEMD_UNIT": "init.scope",
+  "_COMM": "systemd",
+  "_PID": "1",
+  "PRIORITY": "6",
+  "message": "Started fusion-lab.service - Fusion harmless lab service."
+}

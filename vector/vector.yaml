@@ -5,12 +5,12 @@ api:
   address: 0.0.0.0:8687
 
 sources:
-  sysmon_http:
+  fusion_http:
     type: http_server
     address: 0.0.0.0:8686
     method: POST
-    path: /sysmon
-    strict_path: true
+    path: /
+    strict_path: false
     response_code: 202
     headers:
       - X-Fusion-Validation-Id
@@ -20,18 +20,24 @@ sources:
       codec: json
 
 transforms:
+  ingest_routes:
+    type: route
+    inputs:
+      - fusion_http
+    route:
+      sysmon: '.path == "/sysmon"'
+      linux: '.path == "/linux"'
+
   normalize_sysmon:
     type: remap
     inputs:
-      - sysmon_http
+      - ingest_routes.sysmon
     drop_on_abort: true
     reroute_dropped: true
     source: |-
       original = .
-
       event_id_raw = .Event.System.EventID || .event.System.EventID || .winlog.event_id || .event_id || .event.code || 0
       event_id = to_int(event_id_raw) ?? 0
-
       source_time_raw = ."@timestamp" || .timestamp || .Event.EventData.UtcTime || .event.EventData.UtcTime || .winlog.event_data.UtcTime || .event_data.UtcTime || .Event.System.TimeCreated.SystemTime || .event.System.TimeCreated.SystemTime
       source_time_text = to_string(source_time_raw) ?? ""
       event_time = parse_timestamp(source_time_text, format: "%+") ?? now()
@@ -54,28 +60,52 @@ transforms:
         "sysmon_other"
       }
 
+      event_category = if event_id == 1 {
+        "process"
+      } else if event_id == 3 {
+        "network"
+      } else if event_id == 7 {
+        "library"
+      } else if event_id == 11 {
+        "file"
+      } else if event_id == 13 {
+        "registry"
+      } else if event_id == 22 {
+        "dns"
+      } else if event_id == 4104 {
+        "script"
+      } else {
+        "other"
+      }
+
       channel_raw = .Event.System.Channel || .event.System.Channel || .winlog.channel || .channel || "Microsoft-Windows-Sysmon/Operational"
       channel = to_string(channel_raw) ?? ""
       provider_name_raw = .Event.System.Provider.Name || .event.System.Provider.Name || .winlog.provider_name || .provider_name || ""
       provider_name = to_string(provider_name_raw) ?? ""
       record_id_raw = .Event.System.EventRecordID || .event.System.EventRecordID || .winlog.record_id || .record_id || 0
       record_id = to_int(record_id_raw) ?? 0
-      computer_raw = .Event.System.Computer || .event.System.Computer || .host.name || .computer || "unknown"
+      computer_raw = .Event.System.Computer || .event.System.Computer || .host.name || .host || .computer || "unknown"
       computer = to_string(computer_raw) ?? "unknown"
-      user_raw = .Event.EventData.User || .event.EventData.User || .winlog.event_data.User || .event_data.User || .user.name || .user || ""
+      user_raw = .Event.EventData.User || .event.EventData.User || .winlog.event_data.User || .event_data.User || .user.name || .user_name || .user || ""
       user = to_string(user_raw) ?? ""
+      user_id_raw = .Event.System.Security.UserID || .event.System.Security.UserID || .winlog.user.id || .user_id || ""
+      user_id = to_string(user_id_raw) ?? ""
       process_guid_raw = .Event.EventData.ProcessGuid || .event.EventData.ProcessGuid || .winlog.event_data.ProcessGuid || .event_data.ProcessGuid || .process_guid || ""
       process_guid = to_string(process_guid_raw) ?? ""
       process_id_raw = .Event.EventData.ProcessId || .event.EventData.ProcessId || .winlog.event_data.ProcessId || .event_data.ProcessId || .process.pid || .process_id || 0
       process_id = to_int(process_id_raw) ?? 0
       image_raw = .Event.EventData.Image || .event.EventData.Image || .winlog.event_data.Image || .event_data.Image || .process.executable || .image || ""
       image = to_string(image_raw) ?? ""
+      process_name = replace(image, r'^.*[\\/]', "")
       image_loaded_raw = .Event.EventData.ImageLoaded || .event.EventData.ImageLoaded || .winlog.event_data.ImageLoaded || .event_data.ImageLoaded || .image_loaded || ""
       image_loaded = to_string(image_loaded_raw) ?? ""
       command_line_raw = .Event.EventData.CommandLine || .event.EventData.CommandLine || .winlog.event_data.CommandLine || .event_data.CommandLine || .process.command_line || .command_line || ""
       command_line = to_string(command_line_raw) ?? ""
       parent_image_raw = .Event.EventData.ParentImage || .event.EventData.ParentImage || .winlog.event_data.ParentImage || .event_data.ParentImage || .process.parent.executable || .parent_image || ""
       parent_image = to_string(parent_image_raw) ?? ""
+      parent_process_name = replace(parent_image, r'^.*[\\/]', "")
+      parent_process_id_raw = .Event.EventData.ParentProcessId || .event.EventData.ParentProcessId || .winlog.event_data.ParentProcessId || .event_data.ParentProcessId || .process.parent.pid || .parent_process_id || 0
+      parent_process_id = to_int(parent_process_id_raw) ?? 0
       parent_command_line_raw = .Event.EventData.ParentCommandLine || .event.EventData.ParentCommandLine || .winlog.event_data.ParentCommandLine || .event_data.ParentCommandLine || .process.parent.command_line || .parent_command_line || ""
       parent_command_line = to_string(parent_command_line_raw) ?? ""
       powershell_script_raw = .Event.EventData.ScriptBlockText || .event.EventData.ScriptBlockText || .winlog.event_data.ScriptBlockText || .event_data.ScriptBlockText || .powershell_script || ""
@@ -150,21 +180,299 @@ transforms:
         "rule_name": rule_name,
         "message": message,
         "validation_id": validation_id,
-        "raw_json": encode_json(original)
+        "raw_json": encode_json(original),
+        "host_name": computer,
+        "platform": "windows",
+        "source_type": "windows_sysmon",
+        "event_category": event_category,
+        "event_action": event_type,
+        "event_code": to_string(event_id),
+        "source_event_id": to_string(record_id),
+        "user_name": user,
+        "user_id": user_id,
+        "process_name": process_name,
+        "process_path": image,
+        "parent_process_name": parent_process_name,
+        "parent_process_id": parent_process_id,
+        "service_name": "",
+        "outcome": "unknown",
+        "severity": "info"
       }
 
-  rejected_sysmon:
+  normalize_linux:
+    type: remap
+    inputs:
+      - ingest_routes.linux
+    drop_on_abort: true
+    reroute_dropped: true
+    source: |-
+      original = .
+      source_kind = to_string(.source_type) ?? "linux_unknown"
+      message = to_string(.message) ?? ""
+      host_raw = .host_name || .host || ._HOSTNAME || "unknown"
+      host_name = to_string(host_raw) ?? "unknown"
+      source_time_raw = .timestamp || ."@timestamp"
+      source_time_text = to_string(source_time_raw) ?? ""
+      event_time = parse_timestamp(source_time_text, format: "%+") ?? now()
+      validation_id_raw = ."X-Fusion-Validation-Id" || ."x-fusion-validation-id" || .validation_id || ""
+      validation_id = to_string(validation_id_raw) ?? ""
+
+      event_code = ""
+      source_event_id = ""
+      event_category = "other"
+      event_action = "linux_event"
+      channel = ""
+      provider_name = ""
+      record_id = 0
+      user_name = ""
+      user_id = ""
+      process_name = ""
+      process_path = ""
+      process_id = 0
+      parent_process_name = ""
+      parent_process_id = 0
+      command_line = ""
+      source_ip = ""
+      source_port = 0
+      destination_ip = ""
+      destination_port = 0
+      protocol = ""
+      service_name = ""
+      outcome = "unknown"
+      severity = "info"
+
+      if source_kind == "linux_auditd" {
+        channel = "auditd"
+        provider_name = "auditd"
+        type_match = parse_regex(message, r'(?m)^type=(?P<record_type>[A-Z0-9_]+)') ?? {}
+        record_type = upcase(to_string(type_match.record_type))
+        event_code = record_type
+        audit_match = parse_regex(message, r'msg=audit\((?P<epoch>[0-9]+(?:\.[0-9]+)?):(?P<serial>[0-9]+)\)') ?? {}
+        audit_epoch = to_string(audit_match.epoch)
+        event_time = parse_timestamp(audit_epoch, format: "%s%.f") ?? event_time
+        source_event_id = to_string(audit_match.serial)
+        record_id = to_int(source_event_id) ?? 0
+        primary_match = parse_regex(message, r'(?m)^type=[A-Z0-9_]+ (?P<body>[^\r\n]+)') ?? {}
+        primary_body = to_string(primary_match.body)
+        fields = parse_key_value(primary_body) ?? {}
+        execve_match = parse_regex(message, r'(?m)^type=EXECVE (?P<body>[^\r\n]+)') ?? {}
+        execve_body = to_string(execve_match.body)
+        execve_fields = parse_key_value(execve_body) ?? {}
+
+        exe = to_string(fields.exe) ?? ""
+        comm = to_string(fields.comm) ?? ""
+        a0 = to_string(execve_fields.a0) ?? to_string(fields.a0) ?? ""
+        a1 = to_string(execve_fields.a1) ?? to_string(fields.a1) ?? ""
+        a2 = to_string(execve_fields.a2) ?? to_string(fields.a2) ?? ""
+        a3 = to_string(execve_fields.a3) ?? to_string(fields.a3) ?? ""
+        a4 = to_string(execve_fields.a4) ?? to_string(fields.a4) ?? ""
+        a5 = to_string(execve_fields.a5) ?? to_string(fields.a5) ?? ""
+        a6 = to_string(execve_fields.a6) ?? to_string(fields.a6) ?? ""
+        a7 = to_string(execve_fields.a7) ?? to_string(fields.a7) ?? ""
+        command_line = a0
+        if a1 != "" { command_line = command_line + " " + a1 }
+        if a2 != "" { command_line = command_line + " " + a2 }
+        if a3 != "" { command_line = command_line + " " + a3 }
+        if a4 != "" { command_line = command_line + " " + a4 }
+        if a5 != "" { command_line = command_line + " " + a5 }
+        if a6 != "" { command_line = command_line + " " + a6 }
+        if a7 != "" { command_line = command_line + " " + a7 }
+        audit_cmd = to_string(fields.cmd) ?? ""
+        if audit_cmd != "" { command_line = audit_cmd }
+        process_path = if exe != "" { exe } else { a0 }
+        process_name = if comm != "" { comm } else { replace(process_path, r'^.*/', "") }
+        if command_line == "" { command_line = process_path }
+        process_id = to_int(fields.pid) ?? 0
+        parent_process_id = to_int(fields.ppid) ?? 0
+
+        audit_user_id = to_string(fields.auid) ?? ""
+        if audit_user_id == "" || audit_user_id == "4294967295" { audit_user_id = to_string(fields.uid) ?? "" }
+        user_id = audit_user_id
+        user_name = to_string(fields.acct) ?? ""
+        if user_name == "?" || user_name == "(unknown)" { user_name = "" }
+
+        source_ip = to_string(fields.addr) ?? to_string(fields.src) ?? to_string(fields.saddr) ?? ""
+        if source_ip == "?" { source_ip = "" }
+        source_port = to_int(fields.src_port) ?? to_int(fields.sport) ?? 0
+        destination_ip = to_string(fields.dst) ?? to_string(fields.daddr) ?? ""
+        destination_port = to_int(fields.dst_port) ?? to_int(fields.dport) ?? 0
+        protocol = downcase(to_string(fields.proto) ?? "")
+        success_text = downcase(to_string(fields.success) ?? to_string(fields.res) ?? "")
+        audit_message_lower = downcase(message)
+        outcome = if success_text == "yes" || success_text == "success" || contains(audit_message_lower, "res=success") || contains(audit_message_lower, "success=yes") { "success" } else if success_text == "no" || success_text == "failed" || success_text == "failure" || contains(audit_message_lower, "res=failed") || contains(audit_message_lower, "success=no") { "failure" } else { "unknown" }
+        severity = if outcome == "failure" { "warning" } else { "info" }
+
+        if record_type == "SYSCALL" || record_type == "EXECVE" {
+          event_category = "process"
+          event_action = "process_execute"
+        } else if record_type == "USER_CMD" {
+          event_category = "process"
+          event_action = if contains(downcase(process_path + " " + command_line), "sudo") { "sudo_command" } else { "user_command" }
+        } else if record_type == "USER_LOGIN" {
+          event_category = "authentication"
+          event_action = "user_login"
+        } else if record_type == "USER_AUTH" {
+          event_category = "authentication"
+          event_action = "user_authentication"
+        } else if record_type == "USER_ACCT" {
+          event_category = "authentication"
+          event_action = "account_validation"
+        } else if record_type == "CRED_ACQ" {
+          event_category = "authentication"
+          event_action = "credential_acquire"
+        } else if record_type == "CRED_DISP" {
+          event_category = "authentication"
+          event_action = "credential_dispose"
+        } else {
+          event_category = "audit"
+          event_action = downcase(record_type)
+        }
+
+        lower_process = downcase(process_path + " " + command_line)
+        service_name = if contains(lower_process, "sshd") { "ssh" } else if contains(lower_process, "sudo") { "sudo" } else if contains(lower_process, "/su") { "su" } else { to_string(fields.unit) ?? "" }
+      } else {
+        source_kind = "linux_journald"
+        channel = "journald"
+        identifier_raw = .SYSLOG_IDENTIFIER || ._COMM || "journald"
+        identifier = to_string(identifier_raw) ?? "journald"
+        provider_name = identifier
+        event_code_raw = .MESSAGE_ID || identifier
+        event_code = to_string(event_code_raw) ?? identifier
+        source_event_id_raw = .__CURSOR || ._AUDIT_SESSION || ""
+        source_event_id = to_string(source_event_id_raw) ?? ""
+        process_name_raw = ._COMM || .SYSLOG_IDENTIFIER || ""
+        process_name = to_string(process_name_raw) ?? ""
+        process_path = to_string(._EXE) ?? ""
+        process_id = to_int(._PID) ?? 0
+        parent_process_id = to_int(._PPID) ?? 0
+        user_id = to_string(._UID) ?? ""
+        unit_raw = .UNIT || ._SYSTEMD_UNIT || ""
+        unit = to_string(unit_raw) ?? ""
+        lower_identifier = downcase(identifier)
+        lower_message = downcase(message)
+        lower_unit = downcase(unit)
+
+        ssh_success = parse_regex(message, r'(?i)Accepted\s+[^ ]+\s+for\s+(?P<user>[^ ]+)\s+from\s+(?P<ip>[^ ]+)\s+port\s+(?P<port>[0-9]+)') ?? {}
+        ssh_failure = parse_regex(message, r'(?i)Failed\s+[^ ]+\s+for\s+(?:invalid user\s+)?(?P<user>[^ ]+)\s+from\s+(?P<ip>[^ ]+)\s+port\s+(?P<port>[0-9]+)') ?? {}
+        sudo_match = parse_regex(message, r'^(?P<user>[^ :]+)\s*:\s.*COMMAND=(?P<command>.+)$') ?? {}
+        service_match = parse_regex(message, r'(?i)^(?P<verb>Started|Stopped|Starting|Stopping|Failed to start)\s+(?P<service>[^ ]+\.service)') ?? {}
+
+        is_ssh = lower_identifier == "ssh" || lower_identifier == "sshd" || starts_with(lower_unit, "ssh")
+        is_sudo = lower_identifier == "sudo" || process_name == "sudo" || contains(lower_message, "sudo:")
+        is_su = lower_identifier == "su" || process_name == "su" || contains(lower_message, "pam_unix(su:")
+        is_systemd = lower_identifier == "systemd" || process_name == "systemd" || lower_unit == "init.scope"
+
+        if is_ssh {
+          event_category = "authentication"
+          event_action = "ssh_login"
+          service_name = "ssh"
+          success_user = to_string(ssh_success.user)
+          failed_user = to_string(ssh_failure.user)
+          user_name = if success_user != "" { success_user } else { failed_user }
+          success_ip = to_string(ssh_success.ip)
+          failed_ip = to_string(ssh_failure.ip)
+          source_ip = if success_ip != "" { success_ip } else { failed_ip }
+          source_port = to_int(ssh_success.port) ?? to_int(ssh_failure.port) ?? 0
+          outcome = if success_user != "" { "success" } else if failed_user != "" || contains(lower_message, "authentication failure") { "failure" } else { "unknown" }
+        } else if is_sudo {
+          event_category = "process"
+          event_action = "sudo_command"
+          service_name = "sudo"
+          user_name = to_string(sudo_match.user)
+          command_line = to_string(sudo_match.command)
+          outcome = if contains(lower_message, "authentication failure") || contains(lower_message, "not in the sudoers") { "failure" } else if command_line != "" || contains(lower_message, "session opened") { "success" } else { "unknown" }
+        } else if is_su {
+          event_category = "authentication"
+          event_action = "su"
+          service_name = "su"
+          outcome = if contains(lower_message, "authentication failure") { "failure" } else if contains(lower_message, "session opened") { "success" } else { "unknown" }
+        } else if is_systemd {
+          event_category = "service"
+          service_verb = downcase(to_string(service_match.verb))
+          parsed_service = to_string(service_match.service)
+          service_name = if parsed_service != "" { parsed_service } else { unit }
+          event_action = if starts_with(service_verb, "start") { "service_start" } else if starts_with(service_verb, "stop") { "service_stop" } else { "service_activity" }
+          outcome = if starts_with(service_verb, "failed") || contains(lower_message, "failed") { "failure" } else if starts_with(service_verb, "started") || starts_with(service_verb, "stopped") { "success" } else { "unknown" }
+        } else {
+          event_category = "authentication"
+          event_action = "authentication_activity"
+          service_name = identifier
+          outcome = if contains(lower_message, "failure") || contains(lower_message, "failed") { "failure" } else { "unknown" }
+        }
+
+        if user_name == "" { user_name = to_string(.USER) ?? "" }
+        priority = to_int(.PRIORITY) ?? 6
+        severity = if priority <= 3 || outcome == "failure" { "error" } else if priority == 4 { "warning" } else { "info" }
+      }
+
+      . = {
+        "event_time": format_timestamp!(event_time, format: "%Y-%m-%d %H:%M:%S%.3f"),
+        "event_id": 0,
+        "event_type": event_action,
+        "channel": channel,
+        "provider_name": provider_name,
+        "record_id": record_id,
+        "computer": host_name,
+        "user": user_name,
+        "process_guid": "",
+        "process_id": process_id,
+        "image": process_path,
+        "image_loaded": "",
+        "command_line": command_line,
+        "parent_image": "",
+        "parent_command_line": "",
+        "powershell_script": "",
+        "source_ip": source_ip,
+        "source_port": source_port,
+        "destination_ip": destination_ip,
+        "destination_port": destination_port,
+        "destination_hostname": "",
+        "query_name": "",
+        "query_status": "",
+        "query_results": "",
+        "target_filename": "",
+        "target_object": "",
+        "registry_details": "",
+        "protocol": protocol,
+        "initiated": 0,
+        "hashes": "",
+        "rule_name": "",
+        "message": message,
+        "validation_id": validation_id,
+        "raw_json": encode_json(original),
+        "host_name": host_name,
+        "platform": "linux",
+        "source_type": source_kind,
+        "event_category": event_category,
+        "event_action": event_action,
+        "event_code": event_code,
+        "source_event_id": source_event_id,
+        "user_name": user_name,
+        "user_id": user_id,
+        "process_name": process_name,
+        "process_path": process_path,
+        "parent_process_name": parent_process_name,
+        "parent_process_id": parent_process_id,
+        "service_name": service_name,
+        "outcome": outcome,
+        "severity": severity
+      }
+
+  rejected_events:
     type: remap
     inputs:
       - normalize_sysmon.dropped
+      - normalize_linux.dropped
+      - ingest_routes._unmatched
     source: |-
-      .fusion_error = "normalization_failed"
+      .fusion_error = "normalization_or_path_rejected"
 
 sinks:
   clickhouse:
     type: clickhouse
     inputs:
       - normalize_sysmon
+      - normalize_linux
     endpoint: http://clickhouse:8123
     database: fusion
     table: sysmon_events
@@ -189,7 +497,7 @@ sinks:
   rejected_console:
     type: console
     inputs:
-      - rejected_sysmon
+      - rejected_events
     encoding:
       codec: json
 
@@ -212,7 +520,7 @@ tests:
       - extract_from: normalize_sysmon
         conditions:
           - type: vrl
-            source: '.event_id == 1 && .event_type == "process_create" && .process_id == 4242 && contains(to_string(.image) ?? "", "powershell.exe")'
+            source: '.event_id == 1 && .event_type == "process_create" && .process_id == 4242 && contains(to_string(.image) ?? "", "powershell.exe") && .platform == "windows" && .source_type == "windows_sysmon" && .process_name == "powershell.exe" && .process_path == .image'
 
   - name: normalize_ecs_network_connection
     inputs:
@@ -232,7 +540,7 @@ tests:
       - extract_from: normalize_sysmon
         conditions:
           - type: vrl
-            source: '.event_type == "network_connect" && .destination_port == 443 && .destination_ip == "1.1.1.1"'
+            source: '.event_type == "network_connect" && .event_category == "network" && .destination_port == 443 && .destination_ip == "1.1.1.1"'
 
   - name: normalize_windows_agent_process_create
     inputs:
@@ -245,17 +553,19 @@ tests:
           computer: WINDOWS-LAB
           provider_name: Microsoft-Windows-Sysmon
           record_id: 1001
+          user_id: S-1-5-21-1000
           event_id: 1
           event_data:
             Image: 'C:\Windows\System32\cmd.exe'
             CommandLine: 'cmd.exe /c whoami'
             ProcessId: "4312"
+            ParentProcessId: "4000"
           xml: '<Event><System><EventID>1</EventID></System></Event>'
     outputs:
       - extract_from: normalize_sysmon
         conditions:
           - type: vrl
-            source: '.event_id == 1 && .event_type == "process_create" && .event_time == "2026-09-02 10:02:00.123" && .computer == "WINDOWS-LAB" && .record_id == 1001 && contains(to_string(.raw_json) ?? "", "windows_event_log") && contains(to_string(.raw_json) ?? "", "xml")'
+            source: '.event_id == 1 && .event_type == "process_create" && .event_time == "2026-09-02 10:02:00.123" && .computer == "WINDOWS-LAB" && .host_name == "WINDOWS-LAB" && .record_id == 1001 && .user_id == "S-1-5-21-1000" && .parent_process_id == 4000 && contains(to_string(.raw_json) ?? "", "windows_event_log") && contains(to_string(.raw_json) ?? "", "xml")'
 
   - name: normalize_windows_agent_network_connection
     inputs:
@@ -352,3 +662,111 @@ tests:
         conditions:
           - type: vrl
             source: '.event_id == 13 && .event_type == "registry_value_set" && contains(to_string(.target_object) ?? "", "FusionLab") && .registry_details == "DWORD (0x00000001)"'
+
+  - name: normalize_linux_audit_exec
+    inputs:
+      - insert_at: normalize_linux
+        type: log
+        log_fields:
+          source_platform: linux
+          source_type: linux_auditd
+          host_name: ubuntu-lab
+          timestamp: "2026-09-03T08:00:00.000Z"
+          message: |-
+            type=SYSCALL msg=audit(1788422400.125:4201): arch=c000003e syscall=59 success=yes exit=0 ppid=2200 pid=2201 auid=1000 uid=1000 comm="curl" exe="/usr/bin/curl" key="fusion-lab"
+            type=EXECVE msg=audit(1788422400.125:4201): argc=2 a0="/usr/bin/curl" a1="https://example.com"
+            type=EOE msg=audit(1788422400.125:4201):
+    outputs:
+      - extract_from: normalize_linux
+        conditions:
+          - type: vrl
+            source: '.platform == "linux" && .source_type == "linux_auditd" && .event_category == "process" && .event_action == "process_execute" && .process_name == "curl" && .process_path == "/usr/bin/curl" && .user_id == "1000" && .command_line == "/usr/bin/curl https://example.com" && contains(to_string(.raw_json) ?? "", "type=EXECVE") && !contains(to_string(.command_line) ?? "", "type=EOE")'
+
+  - name: normalize_linux_audit_sudo
+    inputs:
+      - insert_at: normalize_linux
+        type: log
+        log_fields:
+          source_type: linux_auditd
+          host: ubuntu-lab
+          timestamp: "2026-09-03T08:01:00.000Z"
+          message: 'type=USER_CMD msg=audit(1788422460.250:4202): pid=2300 uid=1000 auid=1000 acct="analyst" exe="/usr/bin/sudo" cmd="/usr/bin/id" res=success'
+    outputs:
+      - extract_from: normalize_linux
+        conditions:
+          - type: vrl
+            source: '.event_action == "sudo_command" && .service_name == "sudo" && .user_name == "analyst" && .outcome == "success" && .command_line == "/usr/bin/id"'
+
+  - name: normalize_linux_journald_ssh_success
+    inputs:
+      - insert_at: normalize_linux
+        type: log
+        log_fields:
+          source_type: linux_journald
+          host: ubuntu-lab
+          timestamp: "2026-09-03T08:02:00.000Z"
+          SYSLOG_IDENTIFIER: sshd
+          _SYSTEMD_UNIT: ssh.service
+          _COMM: sshd
+          _PID: "2400"
+          PRIORITY: "6"
+          message: 'Accepted publickey for analyst from 192.0.2.20 port 54321 ssh2: ED25519 SHA256:example'
+    outputs:
+      - extract_from: normalize_linux
+        conditions:
+          - type: vrl
+            source: '.event_category == "authentication" && .event_action == "ssh_login" && .service_name == "ssh" && .user_name == "analyst" && .source_ip == "192.0.2.20" && .source_port == 54321 && .outcome == "success"'
+
+  - name: normalize_linux_journald_ssh_failure
+    inputs:
+      - insert_at: normalize_linux
+        type: log
+        log_fields:
+          source_type: linux_journald
+          host: ubuntu-lab
+          timestamp: "2026-09-03T08:03:00.000Z"
+          SYSLOG_IDENTIFIER: sshd
+          _SYSTEMD_UNIT: ssh.service
+          PRIORITY: "4"
+          message: 'Failed password for invalid user attacker from 192.0.2.30 port 55000 ssh2'
+    outputs:
+      - extract_from: normalize_linux
+        conditions:
+          - type: vrl
+            source: '.event_action == "ssh_login" && .user_name == "attacker" && .source_ip == "192.0.2.30" && .outcome == "failure" && .severity == "error"'
+
+  - name: normalize_linux_journald_sudo
+    inputs:
+      - insert_at: normalize_linux
+        type: log
+        log_fields:
+          source_type: linux_journald
+          host: ubuntu-lab
+          timestamp: "2026-09-03T08:03:30.000Z"
+          SYSLOG_IDENTIFIER: sudo
+          _COMM: sudo
+          PRIORITY: "5"
+          message: 'analyst : TTY=pts/0 ; PWD=/home/analyst ; USER=root ; COMMAND=/usr/bin/id'
+    outputs:
+      - extract_from: normalize_linux
+        conditions:
+          - type: vrl
+            source: '.event_action == "sudo_command" && .service_name == "sudo" && .user_name == "analyst" && .command_line == "/usr/bin/id" && .outcome == "success"'
+
+  - name: normalize_linux_journald_systemd
+    inputs:
+      - insert_at: normalize_linux
+        type: log
+        log_fields:
+          source_type: linux_journald
+          host: ubuntu-lab
+          timestamp: "2026-09-03T08:04:00.000Z"
+          SYSLOG_IDENTIFIER: systemd
+          _SYSTEMD_UNIT: init.scope
+          PRIORITY: "6"
+          message: 'Started fusion-lab.service - Fusion harmless lab service.'
+    outputs:
+      - extract_from: normalize_linux
+        conditions:
+          - type: vrl
+            source: '.event_category == "service" && .event_action == "service_start" && .service_name == "fusion-lab.service" && .outcome == "success"'

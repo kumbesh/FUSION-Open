@@ -1,0 +1,14 @@
+{
+  "source_platform": "linux",
+  "source_type": "linux_journald",
+  "host_name": "ubuntu-lab",
+  "host": "ubuntu-lab",
+  "timestamp": "2026-09-03T08:03:00.000Z",
+  "SYSLOG_IDENTIFIER": "sshd",
+  "_SYSTEMD_UNIT": "ssh.service",
+  "_COMM": "sshd",
+  "_EXE": "/usr/sbin/sshd",
+  "_PID": "2401",
+  "PRIORITY": "4",
+  "message": "Failed password for invalid user attacker from 192.0.2.30 port 55000 ssh2"
+}

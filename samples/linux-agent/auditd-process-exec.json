@@ -1,0 +1,10 @@
+{
+  "source_platform": "linux",
+  "source_type": "linux_auditd",
+  "host_name": "ubuntu-lab",
+  "host": "ubuntu-lab",
+  "timestamp": "2026-09-03T08:00:00.000Z",
+  "file": "/var/log/audit/audit.log",
+  "offset": 1024,
+  "message": "type=SYSCALL msg=audit(1788422400.125:4201): arch=c000003e syscall=59 success=yes exit=0 ppid=2200 pid=2201 auid=1000 uid=1000 comm=\"curl\" exe=\"/usr/bin/curl\" key=\"fusion-lab\"\ntype=EXECVE msg=audit(1788422400.125:4201): argc=2 a0=\"/usr/bin/curl\" a1=\"https://example.com\"\ntype=EOE msg=audit(1788422400.125:4201):"
+}

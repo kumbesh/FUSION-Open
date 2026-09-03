@@ -12,7 +12,7 @@ Assert-FusionAgentAdministrator
 Assert-FusionSysmonPrerequisites
 Assert-FusionCollectorUrl -CollectorUrl $CollectorUrl
 if ($CollectorUrl.Scheme -eq "http") {
-    Write-Warning "Fusion v0.2 ingestion has no TLS or authentication. Use this URL only on an isolated, firewall-restricted lab network."
+    Write-Warning "Fusion ingestion has no TLS or authentication. Use this URL only on an isolated, firewall-restricted lab network."
 }
 
 $existingService = Get-FusionAgentService

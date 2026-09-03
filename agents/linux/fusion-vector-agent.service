@@ -1,0 +1,41 @@
+[Unit]
+Description=Fusion Linux Vector Agent
+Documentation=https://github.com/kumbesh/FUSION-Open
+Wants=network-online.target
+After=network-online.target auditd.service systemd-journald.service
+ConditionPathExists=/var/log/audit/audit.log
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStartPre=/usr/local/lib/fusion-vector-agent/bin/vector validate --no-environment --skip-healthchecks --config-yaml /etc/fusion-vector-agent/vector.yaml
+ExecStart=/usr/local/lib/fusion-vector-agent/bin/vector --config-yaml /etc/fusion-vector-agent/vector.yaml
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+StateDirectory=fusion-vector-agent
+LogsDirectory=fusion-vector-agent
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH
+AmbientCapabilities=CAP_DAC_READ_SEARCH
+ReadOnlyPaths=/var/log/audit
+ReadWritePaths=/var/lib/fusion-vector-agent /var/log/fusion-vector-agent
+
+[Install]
+WantedBy=multi-user.target
