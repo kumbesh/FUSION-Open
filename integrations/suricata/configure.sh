@@ -14,7 +14,10 @@ eve_path=${2:-$(fusion_suricata_read_metadata EVE_PATH || printf '/var/log/suric
 sensor_name=${3:-$(fusion_suricata_read_metadata SENSOR_NAME || hostname)}
 fusion_suricata_require_root
 fusion_suricata_assert_prerequisites "$eve_path"
-[ -x "$FUSION_SURICATA_BINARY" ] && [ -f "$FUSION_SURICATA_UNIT" ] || { echo "Fusion Suricata integration is not installed. Run install.sh first." >&2; exit 1; }
+if [ ! -x "$FUSION_SURICATA_BINARY" ] || [ ! -f "$FUSION_SURICATA_UNIT" ]; then
+  echo "Fusion Suricata integration is not installed. Run install.sh first." >&2
+  exit 1
+fi
 
 temporary_config=$(mktemp)
 trap 'rm -f "$temporary_config"' EXIT HUP INT TERM
