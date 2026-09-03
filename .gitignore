@@ -1,9 +1,11 @@
 .env
 *.log
+!samples/security-tools/rfc3164.log
+!samples/security-tools/rfc5424.log
+!samples/security-tools/unknown-valid-syslog.log
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
 work/
 outputs/
-
