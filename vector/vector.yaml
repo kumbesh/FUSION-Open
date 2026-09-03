@@ -1097,14 +1097,14 @@ tests:
             proto: TCP
             alert:
               action: allowed
-              signature_id: 2100498
+              signature_id: 9000001
               signature: FUSION TEST Suricata alert
               severity: 2
     outputs:
       - extract_from: normalize_security
         conditions:
           - type: vrl
-            source: '.vendor == "OISF" && .product == "Suricata" && .event_kind == "alert" && .event_action == "network_alert" && .signature_id == "2100498" && .severity == "medium" && .source_ip == "192.0.2.20" && .source_address == "192.0.2.10" && contains(to_string(.raw_json) ?? "", "FUSION TEST")'
+            source: '.vendor == "OISF" && .product == "Suricata" && .event_kind == "alert" && .event_action == "network_alert" && .signature_id == "9000001" && .severity == "medium" && .source_ip == "192.0.2.20" && .source_address == "192.0.2.10" && contains(to_string(.raw_json) ?? "", "FUSION TEST")'
 
   - name: normalize_suricata_dns
     inputs:

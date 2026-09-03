@@ -10,7 +10,7 @@
     "event_action": "network_alert",
     "severity": "medium",
     "signature": "FUSION TEST Suricata TLS alert",
-    "signature_id": "2100498"
+    "signature_id": "9000001"
   },
   "negative": {
     "platform": "network",
@@ -22,6 +22,6 @@
     "event_action": "network_alert",
     "severity": "medium",
     "signature": "ET POLICY unrelated signature",
-    "signature_id": "2100000"
+    "signature_id": "9000001"
   }
 }

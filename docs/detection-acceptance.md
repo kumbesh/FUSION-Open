@@ -32,7 +32,19 @@ Confirm the real auditd/journald event is normalized with the expected host, use
 
 ## Suricata
 
-Use the existing isolated Suricata acceptance sensor and its controlled local test signature. Generate only the harmless lab traffic already approved for that sensor. Confirm the EVE alert reaches `fusion.sysmon_events`, then verify the appropriate Suricata rule creates a detection containing the real signature, signature ID, source/destination, severity, source event UID, and evidence.
+Use the existing isolated Suricata acceptance sensor and a temporary rule in the sensor's local rules file. Fusion reserves private/local SID `9000001` for this controlled v0.5 test; do not edit, disable, or replace any community rule. First prove the SID is unused by the installed ruleset, adapting the rule directories to the sensor if necessary:
+
+```sh
+sudo grep -R "sid:9000001;" /etc/suricata/rules /var/lib/suricata/rules
+```
+
+No matches are expected. Add this rule only to the configured `local.rules` file:
+
+```text
+alert icmp any any -> any any (msg:"FUSION TEST v0.5 ICMP acceptance"; sid:9000001; rev:1;)
+```
+
+Validate the complete Suricata configuration with `sudo suricata -T -c /etc/suricata/suricata.yaml`, reload Suricata using the sensor's normal service procedure, and ping only an authorized lab peer. Confirm the EVE alert reaches `fusion.sysmon_events`, then verify `fusion-network-controlled-suricata-signature` creates a detection containing SID `9000001`, the `FUSION TEST` signature name, source/destination, severity, source event UID, and evidence. Remove the temporary entry from `local.rules`, validate the configuration again, and reload Suricata after acceptance.
 
 ## Restart continuity
 

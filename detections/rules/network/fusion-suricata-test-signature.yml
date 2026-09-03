@@ -1,7 +1,7 @@
 title: Fusion Controlled Suricata Test Signature
 id: fusion-network-controlled-suricata-signature
 status: test
-description: Matches the controlled Suricata signature used for Fusion live-lab acceptance.
+description: Matches Fusion's private local SID used only for controlled live-lab acceptance.
 author: Fusion Project
 date: 2026-09-04
 tags:
@@ -12,7 +12,7 @@ logsource:
 detection:
   selection:
     EventKind: alert
-    SignatureId: '2100498'
+    SignatureId: '9000001'
     Signature|startswith: 'FUSION TEST'
   condition: selection
 falsepositives:

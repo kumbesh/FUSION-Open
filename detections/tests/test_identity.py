@@ -24,7 +24,7 @@ def test_two_rules_on_one_event_create_distinct_detections(compiled_rules, evalu
             "event_action": "network_alert",
             "severity": "high",
             "signature": "FUSION TEST controlled overlap",
-            "signature_id": "2100498",
+            "signature_id": "9000001",
         },
         "two-rule-event",
     )
