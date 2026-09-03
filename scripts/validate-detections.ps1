@@ -110,4 +110,19 @@ foreach ($query in @(
     Invoke-DetectionQuery $query | Out-Null
 }
 
+Write-Host "Cleaning synthetic detection validation rows..."
+$cleanupStopped = $false
+try {
+    Invoke-FusionCompose stop fusion-detection-engine
+    $cleanupStopped = $true
+    Invoke-DetectionQuery "ALTER TABLE fusion.sysmon_events DELETE WHERE validation_id IN ('$runId', '$secondRunId', '$ingestionRunId') SETTINGS mutations_sync = 2" | Out-Null
+    Invoke-DetectionQuery "ALTER TABLE fusion.detections DELETE WHERE validation_id IN ('$runId', '$secondRunId') SETTINGS mutations_sync = 2" | Out-Null
+    Invoke-DetectionQuery "ALTER TABLE fusion.detection_checkpoints DELETE WHERE engine_id = '$engineId' SETTINGS mutations_sync = 2" | Out-Null
+} finally {
+    if ($cleanupStopped) {
+        Invoke-FusionCompose start fusion-detection-engine
+        Invoke-FusionCompose up --detach --wait --wait-timeout 180 fusion-detection-engine
+    }
+}
+
 Write-Host "Detection validation passed: rules, fixtures, deduplication, restart, ingestion isolation, dry-run, and dashboard queries are healthy."

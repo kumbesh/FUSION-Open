@@ -126,4 +126,14 @@ for query in \
   query_clickhouse "$query" >/dev/null
 done
 
+echo "Cleaning synthetic detection validation rows..."
+fusion_compose stop fusion-detection-engine
+trap 'fusion_compose start fusion-detection-engine >/dev/null 2>&1 || true' EXIT HUP INT TERM
+query_clickhouse "ALTER TABLE fusion.sysmon_events DELETE WHERE validation_id IN ('$run_id', '$second_run_id', '$ingestion_run_id') SETTINGS mutations_sync = 2" >/dev/null
+query_clickhouse "ALTER TABLE fusion.detections DELETE WHERE validation_id IN ('$run_id', '$second_run_id') SETTINGS mutations_sync = 2" >/dev/null
+query_clickhouse "ALTER TABLE fusion.detection_checkpoints DELETE WHERE engine_id = '$engine_id' SETTINGS mutations_sync = 2" >/dev/null
+fusion_compose start fusion-detection-engine
+fusion_compose up --detach --wait --wait-timeout 180 fusion-detection-engine
+trap - EXIT HUP INT TERM
+
 echo "Detection validation passed: rules, fixtures, deduplication, restart, ingestion isolation, dry-run, and dashboard queries are healthy."
