@@ -1,0 +1,20 @@
+title: Fusion Controlled Suricata Test Signature
+id: fusion-network-controlled-suricata-signature
+status: test
+description: Matches the controlled Suricata signature used for Fusion live-lab acceptance.
+author: Fusion Project
+date: 2026-09-04
+tags:
+  - attack.command_and_control
+logsource:
+  product: network
+  service: suricata
+detection:
+  selection:
+    EventKind: alert
+    SignatureId: '2100498'
+    Signature|startswith: 'FUSION TEST'
+  condition: selection
+falsepositives:
+  - Expected when intentionally running the Fusion acceptance test.
+level: medium

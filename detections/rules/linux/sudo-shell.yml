@@ -1,0 +1,25 @@
+title: Shell Executed Through Sudo
+id: fusion-linux-sudo-shell
+status: test
+description: Detects sudo-derived telemetry executing an interactive shell.
+author: Fusion Project
+date: 2026-09-04
+tags:
+  - attack.privilege_escalation
+  - attack.execution
+  - attack.t1059.004
+logsource:
+  product: linux
+  service: linux_auditd
+detection:
+  selection_sudo:
+    Action: sudo_command
+  selection_shell:
+    CommandLine|endswith:
+      - '/bin/bash'
+      - '/bin/sh'
+      - '/usr/bin/bash'
+  condition: selection_sudo and selection_shell
+falsepositives:
+  - Authorized administrators opening a root shell.
+level: medium

@@ -1,0 +1,29 @@
+{
+  "rule_id": "fusion-network-high-severity-suricata-alert",
+  "positive": {
+    "platform": "network",
+    "source_type": "suricata_eve",
+    "vendor": "OISF",
+    "product": "Suricata",
+    "host_name": "suricata-detection-lab",
+    "event_kind": "alert",
+    "event_action": "network_alert",
+    "severity": "high",
+    "signature": "FUSION TEST high severity alert",
+    "signature_id": "9900001",
+    "source_ip": "192.0.2.20",
+    "destination_ip": "198.51.100.40"
+  },
+  "negative": {
+    "platform": "network",
+    "source_type": "suricata_eve",
+    "vendor": "OISF",
+    "product": "Suricata",
+    "host_name": "suricata-detection-lab",
+    "event_kind": "alert",
+    "event_action": "network_alert",
+    "severity": "medium",
+    "signature": "FUSION TEST medium severity alert",
+    "signature_id": "9900002"
+  }
+}

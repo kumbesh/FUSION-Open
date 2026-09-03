@@ -1,0 +1,27 @@
+{
+  "rule_id": "fusion-network-controlled-suricata-signature",
+  "positive": {
+    "platform": "network",
+    "source_type": "suricata_eve",
+    "vendor": "OISF",
+    "product": "Suricata",
+    "host_name": "suricata-detection-lab",
+    "event_kind": "alert",
+    "event_action": "network_alert",
+    "severity": "medium",
+    "signature": "FUSION TEST Suricata TLS alert",
+    "signature_id": "2100498"
+  },
+  "negative": {
+    "platform": "network",
+    "source_type": "suricata_eve",
+    "vendor": "OISF",
+    "product": "Suricata",
+    "host_name": "suricata-detection-lab",
+    "event_kind": "alert",
+    "event_action": "network_alert",
+    "severity": "medium",
+    "signature": "ET POLICY unrelated signature",
+    "signature_id": "2100000"
+  }
+}

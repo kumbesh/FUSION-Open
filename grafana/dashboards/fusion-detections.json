@@ -1,0 +1,184 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "description": "Unique detections in the selected time range.",
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "blue", "value": 1 }] } }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 8, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT count() AS TotalDetections FROM fusion.detections FINAL WHERE $__timeFilter(detected_at) AND match(severity, '${severity:regex}') AND match(status, '${status:regex}') AND match(platform, '${platform:regex}') AND match(host_name, '${host:regex}') AND match(rule_id, '${rule:regex}') AND arrayExists(item -> match(item, '${tactic:regex}'), mitre_tactics) AND arrayExists(item -> match(item, '${technique:regex}'), mitre_technique_ids)", "refId": "A" }],
+      "title": "Total detections",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }] } }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 8, "x": 8, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT count() AS NewDetections FROM fusion.detections FINAL WHERE $__timeFilter(detected_at) AND status = 'new' AND match(severity, '${severity:regex}') AND match(platform, '${platform:regex}') AND match(host_name, '${host:regex}') AND match(rule_id, '${rule:regex}') AND arrayExists(item -> match(item, '${tactic:regex}'), mitre_tactics) AND arrayExists(item -> match(item, '${technique:regex}'), mitre_technique_ids)", "refId": "A" }],
+      "title": "New detections",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 8, "x": 16, "y": 0 },
+      "id": 3,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT count() AS HighCritical FROM fusion.detections FINAL WHERE $__timeFilter(detected_at) AND severity IN ('high', 'critical') AND match(status, '${status:regex}') AND match(platform, '${platform:regex}') AND match(host_name, '${host:regex}') AND match(rule_id, '${rule:regex}') AND arrayExists(item -> match(item, '${tactic:regex}'), mitre_tactics) AND arrayExists(item -> match(item, '${technique:regex}'), mitre_technique_ids)", "refId": "A" }],
+      "title": "High/Critical detections",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 1, "showPoints": "never", "stacking": { "group": "A", "mode": "normal" } } }, "overrides": [] },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 5 },
+      "id": 4,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [{ "editorType": "sql", "format": 0, "queryType": "sql", "rawSql": "SELECT $__timeInterval(detected_at) AS time, severity, count() AS detections FROM fusion.detections FINAL WHERE $__timeFilter(detected_at) AND match(severity, '${severity:regex}') AND match(status, '${status:regex}') AND match(platform, '${platform:regex}') AND match(host_name, '${host:regex}') AND match(rule_id, '${rule:regex}') AND arrayExists(item -> match(item, '${tactic:regex}'), mitre_tactics) AND arrayExists(item -> match(item, '${technique:regex}'), mitre_technique_ids) GROUP BY time, severity ORDER BY time", "refId": "A" }],
+      "title": "Detections over time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-RdYlGr" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 14 },
+      "id": 5,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT severity, count() AS detections FROM fusion.detections FINAL WHERE $__timeFilter(detected_at) AND match(severity, '${severity:regex}') AND match(status, '${status:regex}') AND match(platform, '${platform:regex}') AND match(host_name, '${host:regex}') AND match(rule_id, '${rule:regex}') AND arrayExists(item -> match(item, '${tactic:regex}'), mitre_tactics) AND arrayExists(item -> match(item, '${technique:regex}'), mitre_technique_ids) GROUP BY severity ORDER BY detections DESC", "refId": "A" }],
+      "title": "Detections by severity",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 14 },
+      "id": 6,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT rule_name, count() AS detections FROM fusion.detections FINAL WHERE $__timeFilter(detected_at) AND match(severity, '${severity:regex}') AND match(status, '${status:regex}') AND match(platform, '${platform:regex}') AND match(host_name, '${host:regex}') AND match(rule_id, '${rule:regex}') AND arrayExists(item -> match(item, '${tactic:regex}'), mitre_tactics) AND arrayExists(item -> match(item, '${technique:regex}'), mitre_technique_ids) GROUP BY rule_name ORDER BY detections DESC LIMIT 15", "refId": "A" }],
+      "title": "Detections by rule",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 14 },
+      "id": 7,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT platform, count() AS detections FROM fusion.detections FINAL WHERE $__timeFilter(detected_at) AND match(severity, '${severity:regex}') AND match(status, '${status:regex}') AND match(platform, '${platform:regex}') AND match(host_name, '${host:regex}') AND match(rule_id, '${rule:regex}') AND arrayExists(item -> match(item, '${tactic:regex}'), mitre_tactics) AND arrayExists(item -> match(item, '${technique:regex}'), mitre_technique_ids) GROUP BY platform ORDER BY detections DESC", "refId": "A" }],
+      "title": "Detections by platform",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 14 },
+      "id": 8,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT source_type, count() AS detections FROM fusion.detections FINAL WHERE $__timeFilter(detected_at) AND match(severity, '${severity:regex}') AND match(status, '${status:regex}') AND match(platform, '${platform:regex}') AND match(host_name, '${host:regex}') AND match(rule_id, '${rule:regex}') AND arrayExists(item -> match(item, '${tactic:regex}'), mitre_tactics) AND arrayExists(item -> match(item, '${technique:regex}'), mitre_technique_ids) GROUP BY source_type ORDER BY detections DESC", "refId": "A" }],
+      "title": "Detections by source type",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 22 },
+      "id": 9,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT host_name, count() AS detections FROM fusion.detections FINAL WHERE $__timeFilter(detected_at) AND host_name != '' AND match(severity, '${severity:regex}') AND match(status, '${status:regex}') AND match(platform, '${platform:regex}') AND match(host_name, '${host:regex}') AND match(rule_id, '${rule:regex}') AND arrayExists(item -> match(item, '${tactic:regex}'), mitre_tactics) AND arrayExists(item -> match(item, '${technique:regex}'), mitre_technique_ids) GROUP BY host_name ORDER BY detections DESC LIMIT 15", "refId": "A" }],
+      "title": "Detections by host",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 22 },
+      "id": 10,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT user_name, count() AS detections FROM fusion.detections FINAL WHERE $__timeFilter(detected_at) AND user_name != '' AND match(severity, '${severity:regex}') AND match(status, '${status:regex}') AND match(platform, '${platform:regex}') AND match(host_name, '${host:regex}') AND match(rule_id, '${rule:regex}') AND arrayExists(item -> match(item, '${tactic:regex}'), mitre_tactics) AND arrayExists(item -> match(item, '${technique:regex}'), mitre_technique_ids) GROUP BY user_name ORDER BY detections DESC LIMIT 15", "refId": "A" }],
+      "title": "Top affected users",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 22 },
+      "id": 11,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT source_ip, count() AS detections FROM fusion.detections FINAL WHERE $__timeFilter(detected_at) AND source_ip != '' AND match(severity, '${severity:regex}') AND match(status, '${status:regex}') AND match(platform, '${platform:regex}') AND match(host_name, '${host:regex}') AND match(rule_id, '${rule:regex}') AND arrayExists(item -> match(item, '${tactic:regex}'), mitre_tactics) AND arrayExists(item -> match(item, '${technique:regex}'), mitre_technique_ids) GROUP BY source_ip ORDER BY detections DESC LIMIT 15", "refId": "A" }],
+      "title": "Top source IPs",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 22 },
+      "id": 12,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT destination_ip, count() AS detections FROM fusion.detections FINAL WHERE $__timeFilter(detected_at) AND destination_ip != '' AND match(severity, '${severity:regex}') AND match(status, '${status:regex}') AND match(platform, '${platform:regex}') AND match(host_name, '${host:regex}') AND match(rule_id, '${rule:regex}') AND arrayExists(item -> match(item, '${tactic:regex}'), mitre_tactics) AND arrayExists(item -> match(item, '${technique:regex}'), mitre_technique_ids) GROUP BY destination_ip ORDER BY detections DESC LIMIT 15", "refId": "A" }],
+      "title": "Top destination IPs",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 30 },
+      "id": 13,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT tactic, count() AS detections FROM fusion.detections FINAL ARRAY JOIN mitre_tactics AS tactic WHERE $__timeFilter(detected_at) AND match(severity, '${severity:regex}') AND match(status, '${status:regex}') AND match(platform, '${platform:regex}') AND match(host_name, '${host:regex}') AND match(rule_id, '${rule:regex}') AND arrayExists(item -> match(item, '${tactic:regex}'), mitre_tactics) AND arrayExists(item -> match(item, '${technique:regex}'), mitre_technique_ids) GROUP BY tactic ORDER BY detections DESC", "refId": "A" }],
+      "title": "MITRE tactics",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 30 },
+      "id": 14,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT technique, count() AS detections FROM fusion.detections FINAL ARRAY JOIN mitre_techniques AS technique WHERE $__timeFilter(detected_at) AND match(severity, '${severity:regex}') AND match(status, '${status:regex}') AND match(platform, '${platform:regex}') AND match(host_name, '${host:regex}') AND match(rule_id, '${rule:regex}') AND arrayExists(item -> match(item, '${tactic:regex}'), mitre_tactics) AND arrayExists(item -> match(item, '${technique:regex}'), mitre_technique_ids) GROUP BY technique ORDER BY detections DESC", "refId": "A" }],
+      "title": "MITRE techniques",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "filterable": true } }, "overrides": [] },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 38 },
+      "id": 15,
+      "options": { "cellHeight": "sm", "footer": { "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "Detected" }] },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT detected_at AS Detected, severity AS Severity, status AS Status, rule_name AS Rule, platform AS Platform, host_name AS Host, user_name AS User, process_path AS Process, command_line AS CommandLine, source_ip AS SourceIP, destination_ip AS DestinationIP, signature AS Signature, arrayStringConcat(mitre_technique_ids, ', ') AS MITRE, source_event_uid AS SourceEventUID FROM fusion.detections FINAL WHERE $__timeFilter(detected_at) AND match(severity, '${severity:regex}') AND match(status, '${status:regex}') AND match(platform, '${platform:regex}') AND match(host_name, '${host:regex}') AND match(rule_id, '${rule:regex}') AND arrayExists(item -> match(item, '${tactic:regex}'), mitre_tactics) AND arrayExists(item -> match(item, '${technique:regex}'), mitre_technique_ids) ORDER BY detected_at DESC LIMIT 500", "refId": "A" }],
+      "title": "Recent detections",
+      "type": "table"
+    }
+  ],
+  "preload": false,
+  "refresh": "10s",
+  "schemaVersion": 41,
+  "tags": ["fusion", "detections", "sigma", "clickhouse"],
+  "templating": {
+    "list": [
+      { "allValue": ".*", "current": { "text": "All", "value": "$__all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" }, "definition": "SELECT DISTINCT severity FROM fusion.detections FINAL ORDER BY severity", "includeAll": true, "label": "Severity", "multi": true, "name": "severity", "options": [], "query": "SELECT DISTINCT severity FROM fusion.detections FINAL ORDER BY severity", "refresh": 2, "regex": "", "sort": 1, "type": "query" },
+      { "allValue": ".*", "current": { "text": "All", "value": "$__all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" }, "definition": "SELECT DISTINCT status FROM fusion.detections FINAL ORDER BY status", "includeAll": true, "label": "Status", "multi": true, "name": "status", "options": [], "query": "SELECT DISTINCT status FROM fusion.detections FINAL ORDER BY status", "refresh": 2, "regex": "", "sort": 1, "type": "query" },
+      { "allValue": ".*", "current": { "text": "All", "value": "$__all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" }, "definition": "SELECT DISTINCT platform FROM fusion.detections FINAL WHERE platform != '' ORDER BY platform", "includeAll": true, "label": "Platform", "multi": true, "name": "platform", "options": [], "query": "SELECT DISTINCT platform FROM fusion.detections FINAL WHERE platform != '' ORDER BY platform", "refresh": 2, "regex": "", "sort": 1, "type": "query" },
+      { "allValue": ".*", "current": { "text": "All", "value": "$__all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" }, "definition": "SELECT DISTINCT host_name FROM fusion.detections FINAL WHERE host_name != '' ORDER BY host_name", "includeAll": true, "label": "Host", "multi": true, "name": "host", "options": [], "query": "SELECT DISTINCT host_name FROM fusion.detections FINAL WHERE host_name != '' ORDER BY host_name", "refresh": 2, "regex": "", "sort": 1, "type": "query" },
+      { "allValue": ".*", "current": { "text": "All", "value": "$__all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" }, "definition": "SELECT DISTINCT rule_id FROM fusion.detections FINAL ORDER BY rule_id", "includeAll": true, "label": "Rule", "multi": true, "name": "rule", "options": [], "query": "SELECT DISTINCT rule_id FROM fusion.detections FINAL ORDER BY rule_id", "refresh": 2, "regex": "", "sort": 1, "type": "query" },
+      { "allValue": ".*", "current": { "text": "All", "value": "$__all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" }, "definition": "SELECT DISTINCT arrayJoin(mitre_tactics) AS tactic FROM fusion.detections FINAL ORDER BY tactic", "includeAll": true, "label": "MITRE tactic", "multi": false, "name": "tactic", "options": [], "query": "SELECT DISTINCT arrayJoin(mitre_tactics) AS tactic FROM fusion.detections FINAL ORDER BY tactic", "refresh": 2, "regex": "", "sort": 1, "type": "query" },
+      { "allValue": ".*", "current": { "text": "All", "value": "$__all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" }, "definition": "SELECT DISTINCT arrayJoin(mitre_technique_ids) AS technique FROM fusion.detections FINAL ORDER BY technique", "includeAll": true, "label": "MITRE technique", "multi": false, "name": "technique", "options": [], "query": "SELECT DISTINCT arrayJoin(mitre_technique_ids) AS technique FROM fusion.detections FINAL ORDER BY technique", "refresh": 2, "regex": "", "sort": 1, "type": "query" }
+    ]
+  },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": { "refresh_intervals": ["5s", "10s", "30s", "1m", "5m"], "time_options": ["5m", "15m", "1h", "6h", "24h", "2d", "7d", "30d"] },
+  "timezone": "browser",
+  "title": "Fusion Detections",
+  "uid": "fusion-detections",
+  "version": 1,
+  "weekStart": ""
+}

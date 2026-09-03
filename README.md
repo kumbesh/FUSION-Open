@@ -1,6 +1,6 @@
 # Fusion
 
-Fusion is a small, open-source security analytics lab for endpoint and network-security telemetry. The v0.4 development branch extends the proven v0.3 Windows Sysmon and Linux auditd/journald pipeline with generic security-tool JSON, RFC 3164/5424 syslog, and a first Suricata EVE integration. Every input still uses the same Vector normalization layer and backward-compatible ClickHouse table.
+Fusion is a small, open-source security analytics lab for endpoint and network-security telemetry. Fusion v0.5 adds a standalone post-ingestion detection engine to the proven v0.4 multi-source data plane. Every input still uses the same Vector normalization layer and backward-compatible ClickHouse event table.
 
 ```text
 Windows Sysmon -> Windows Vector ----HTTP /sysmon----\
@@ -8,6 +8,8 @@ Linux auditd/journald -> Linux Vector HTTP /linux------\
 Synthetic or vendor JSON ------------HTTP /security----> Fusion Vector -> ClickHouse -> Grafana
 Suricata eve.json -> local Vector ----HTTP /security----/
 RFC 3164/5424 ------------------------TCP/UDP 5514-----/
+                                                                      |
+                                                                      +-> Detection Engine -> detections -> Grafana
 ```
 
 ## What is included
@@ -15,7 +17,8 @@ RFC 3164/5424 ------------------------TCP/UDP 5514-----/
 - Vector 0.58.0 HTTP and TCP/UDP syslog receivers, native endpoint agents, and shared VRL normalization
 - ClickHouse 26.8.1.2041 with a partitioned, indexed event table
 - Grafana 13.2.1 with ClickHouse data source 4.21.2
-- Provisioned `Fusion Security Overview` and `Fusion Security Sources` dashboards
+- Provisioned `Fusion Security Overview`, `Fusion Security Sources`, and `Fusion Detections` dashboards
+- A Python 3.12 service evaluating a strict, repository-managed Sigma subset after ingestion
 - Native Sysmon, Winlogbeat/ECS, flat JSON, Linux auditd, and native journald field support
 - Sysmon Event IDs 1, 3, 7, 11, 13, and 22 from the Windows agent
 - Sample process creation, PowerShell, network connection, and DNS query events
@@ -91,9 +94,9 @@ The original input is preserved in `raw_json`. For the Windows agent this includ
 
 ### Common event model
 
-The existing `fusion.sysmon_events` table remains in place for backward compatibility. In addition to the v0.3 common endpoint fields, v0.4 adds `device_name`, `vendor`, `product`, `event_kind`, `ingestion_protocol`, `ingestion_path`, `source_address`, `original_format`, `network_direction`, `rule_id`, `signature`, `signature_id`, `url`, `domain`, `syslog_facility`, and `syslog_application`. Transport peer metadata is deliberately separate from event-level `source_ip` and `destination_ip`.
+The existing `fusion.sysmon_events` table remains in place for backward compatibility. In addition to the v0.3 common endpoint fields, v0.4 adds `device_name`, `vendor`, `product`, `event_kind`, `ingestion_protocol`, `ingestion_path`, `source_address`, `original_format`, `network_direction`, `rule_id`, `signature`, `signature_id`, `url`, `domain`, `syslog_facility`, and `syslog_application`. v0.5 adds a materialized `event_uid` used for deterministic detection identity. Transport peer metadata is deliberately separate from event-level `source_ip` and `destination_ip`.
 
-`scripts/deploy.ps1` and `scripts/deploy.sh` apply every idempotent migration, including `clickhouse/migrations/004_security_tool_ingestion_v04.sql`, before recreating the collector and dashboard containers. The validator upgrades isolated v0.2 and v0.3 table shapes and proves that their Windows/Linux rows and raw JSON survive. Existing named volumes are never reset during deployment.
+`scripts/deploy.ps1` and `scripts/deploy.sh` apply every idempotent migration, including `clickhouse/migrations/005_detection_engine_v05.sql`, before recreating the services. The validator upgrades isolated v0.2, v0.3, and v0.4 table shapes and proves that Windows, Linux, Suricata, syslog, and raw event data survive. Existing named volumes are never reset during deployment.
 
 ## Connect a Windows Endpoint
 
@@ -366,6 +369,91 @@ docker compose exec clickhouse clickhouse-client \
 
 Open **Dashboards → Fusion → Fusion Security Sources** and select `Suricata` in the Product filter. The files under `samples/security-tools/` prove configuration and normalization only; they are synthetic and do not satisfy real Suricata acceptance. Real acceptance was completed on an x86_64 Ubuntu 26.04 VMware sensor running Suricata 8.0.3 on 2026-09-03 UTC, including alert, DNS, HTTP, TLS, flow, raw-event, ClickHouse, and Grafana verification. See [docs/suricata-acceptance.md](docs/suricata-acceptance.md) for the evidence and [integrations/suricata/README.md](integrations/suricata/README.md) for installation and troubleshooting.
 
+## Fusion Detection Engine
+
+The v0.5 detection service operates after ClickHouse ingestion. It reads bounded batches of normalized events, evaluates nine curated Sigma YAML rules in Python, and writes matches to `fusion.detections`. Vector contains no rule logic, and stopping or failing the detection service does not interrupt telemetry ingestion.
+
+The engine provides:
+
+- A persistent ClickHouse checkpoint and configurable late-event lookback
+- Deterministic `SHA-256(rule_id + source_event_uid)` detection IDs
+- Idempotent replay and restart behavior
+- Focused evidence containing matched selections, fields, and source event UID
+- Sigma severity and MITRE ATT&CK metadata mapping
+- Exponential ClickHouse retry/backoff and bounded batch sizes
+- No host port, remote rule download, or runtime Internet dependency
+
+Configuration defaults are in `.env.example`:
+
+```dotenv
+FUSION_DETECTION_POLL_SECONDS=10
+FUSION_DETECTION_LOOKBACK_SECONDS=120
+FUSION_DETECTION_BATCH_SIZE=1000
+FUSION_DETECTION_LOG_LEVEL=INFO
+```
+
+Validate every rule without running detections:
+
+```powershell
+docker compose run --rm --no-deps fusion-detection-engine validate-rules
+```
+
+Dry-run one rule against a bounded ClickHouse window without writing detections:
+
+```powershell
+docker compose run --rm --no-deps fusion-detection-engine `
+  test-rule /rules/windows/encoded-powershell.yml --hours 24 --limit 1000
+```
+
+Open **Dashboards → Fusion → Fusion Detections** to view severity, status, rule, platform, source, host, user, IP, and MITRE views. Detection status defaults to `new`; the schema reserves `acknowledged` and `closed`, but v0.5 intentionally has no state-management UI.
+
+### Supported Sigma subset
+
+Fusion supports exact matches, lists, `contains`, `startswith`, `endswith`, `exists`, AND/OR/NOT, parentheses, `1 of selection_*`, and `all of selection_*`. Field and logsource mappings are allowlisted in `detections/mappings/sigma_fields.yml`. Unknown fields, arbitrary SQL, unsupported modifiers, correlation, aggregation, threshold expressions, and `timeframe` fail validation instead of being approximated.
+
+See [detections/README.md](detections/README.md) for the complete field mapping, compiler boundary, rule-testing workflow, checkpoint/deduplication design, security controls, and performance limits. The manual real-endpoint gate is tracked separately in [docs/detection-acceptance.md](docs/detection-acceptance.md).
+
+### Writing a Fusion Detection Rule
+
+Use standard Sigma YAML under the platform directory and only mapped normalized fields. A Windows example:
+
+```yaml
+title: Encoded PowerShell Command
+id: example-windows-encoded-powershell
+logsource:
+  product: windows
+  service: sysmon
+detection:
+  process:
+    EventID: 1
+    Image|endswith: '\powershell.exe'
+  flag:
+    CommandLine|contains: ' -enc '
+  condition: process and flag
+tags:
+  - attack.execution
+  - attack.t1059.001
+level: high
+```
+
+A network example:
+
+```yaml
+title: Selected Dynamic DNS Query
+id: example-network-dynamic-dns
+logsource:
+  product: network
+  service: suricata
+detection:
+  selection:
+    Action: dns_query
+    QueryName|endswith: '.duckdns.org'
+  condition: selection
+level: low
+```
+
+Give every rule a stable unique ID, conservative severity, false-positive guidance, and positive plus negative fixtures. Detection results are analytical signals, not proof that activity is malicious.
+
 ## Dashboard
 
 The provisioned multi-platform dashboard contains:
@@ -383,6 +471,7 @@ The provisioned multi-platform dashboard contains:
 - Vendor, product, source type, and ingestion-protocol volumes
 - Suricata alerts, signatures, source/destination IPs, DNS, HTTP, TLS, and flow activity
 - Generic TCP/UDP syslog volume and recent security-tool events
+- Detection totals, high/critical and new status counters, severity/rule/source/host breakdowns, MITRE tactics and techniques, and recent evidence
 
 PowerShell execution is derived from Sysmon Event ID 1 when `Image` contains `powershell.exe` or `pwsh.exe`.
 
@@ -393,6 +482,7 @@ PowerShell execution is derived from Sysmon Event ID 1 when `Image` contains `po
 | Deploy or update | `.\scripts\deploy.ps1` | `./scripts/deploy.sh` |
 | Stop, preserve data | `.\scripts\stop.ps1` | `./scripts/stop.sh` |
 | Validate end to end | `.\scripts\validate.ps1` | `./scripts/validate.sh` |
+| Validate detections | `.\scripts\validate-detections.ps1` | `./scripts/validate-detections.sh` |
 | Delete data and redeploy | `.\scripts\reset.ps1` | `./scripts/reset.sh` |
 | Non-interactive reset | `.\scripts\reset.ps1 -Force` | `./scripts/reset.sh --force` |
 
@@ -403,6 +493,7 @@ docker compose ps
 docker compose logs -f vector
 docker compose logs -f clickhouse
 docker compose logs -f grafana
+docker compose logs -f fusion-detection-engine
 ```
 
 The reset command permanently removes the Fusion Docker volumes. The stop command does not.
@@ -430,6 +521,10 @@ The table is partitioned monthly, ordered for time-based security investigation,
 agents/windows/                          Native Windows Vector agent and lifecycle scripts
 agents/linux/                            Native Linux Vector agent, systemd unit, and lifecycle scripts
 integrations/suricata/                   EVE JSON shipper, hardened service, and lifecycle scripts
+detections/engine/                       Python 3.12 polling engine and CLI
+detections/rules/                        Curated repository-managed Sigma YAML
+detections/mappings/                     Sigma field/logsource and MITRE mappings
+detections/tests/                        Compiler, security, identity, and platform tests
 clickhouse/init/                         ClickHouse schema for fresh installations
 clickhouse/migrations/                   Idempotent upgrades for existing volumes
 grafana/dashboards/                      Versioned dashboard JSON
@@ -438,6 +533,7 @@ samples/sysmon/                          v0.1 synthetic test events
 samples/windows-agent/                   Native Windows-agent-shaped test events
 samples/linux-agent/                     Linux auditd/journald validation fixtures
 samples/security-tools/                  Suricata EVE and RFC 3164/5424 validation fixtures
+samples/detections/                      Positive and negative normalized rule fixtures
 docs/                                    Design notes for future integrations
 scripts/                                 Deploy, stop, reset, and validate helpers
 vector/vector.yaml                       Receiver, normalization, buffering, tests
@@ -446,7 +542,7 @@ docker-compose.yml                       Pinned service topology
 
 ## Security boundaries
 
-Fusion is a local lab, not an internet-facing deployment. Grafana, HTTP ingestion, syslog, and the Vector health API bind to `127.0.0.1` by default; ClickHouse is reachable only on the private Compose network. HTTP can be explicitly bound with `FUSION_BIND_ADDRESS` and syslog with the separate `FUSION_SYSLOG_BIND_ADDRESS`. The `/sysmon`, `/linux`, and `/security` paths have no TLS or authentication; TCP/UDP syslog is also plaintext and unauthenticated. Never expose 8686 or 5514 directly to the public Internet, never use `0.0.0.0` as a shortcut, and restrict every lab binding with source-scoped firewall rules.
+Fusion is a local lab, not an internet-facing deployment. Grafana, HTTP ingestion, syslog, and the Vector health API bind to `127.0.0.1` by default; ClickHouse and the detection engine are reachable only on the private Compose network. HTTP can be explicitly bound with `FUSION_BIND_ADDRESS` and syslog with the separate `FUSION_SYSLOG_BIND_ADDRESS`. The `/sysmon`, `/linux`, and `/security` paths have no TLS or authentication; TCP/UDP syslog is also plaintext and unauthenticated. Never expose 8686 or 5514 directly to the public Internet, never use `0.0.0.0` as a shortcut, and restrict every lab binding with source-scoped firewall rules.
 
 Do not send real credentials or sensitive production telemetry to the included sample environment. See [SECURITY.md](SECURITY.md) for vulnerability reporting.
 
@@ -458,8 +554,8 @@ Validate configuration after changes:
 .\scripts\validate.ps1
 ```
 
-The validator checks default and explicit lab bindings for HTTP and TCP/UDP syslog, compiles the collector and Suricata shipper configurations, runs all VRL tests, proves v0.2/v0.3 upgrade compatibility, checks the live schema and container health, sends tagged Windows, Linux, Suricata, RFC 3164, RFC 5424, and unknown-valid-syslog fixtures, executes both dashboards' telemetry queries, and confirms Grafana provisioning. Validate the Windows-only source configuration with `agents/windows/test-config.ps1` and the Vector 0.58.0 Windows executable.
+The validator checks default and explicit lab bindings for HTTP and TCP/UDP syslog, compiles the collector and Suricata shipper configurations, runs all VRL tests, proves v0.2/v0.3/v0.4 upgrade compatibility, checks the live schemas and container health, sends tagged Windows, Linux, Suricata, RFC 3164, RFC 5424, and unknown-valid-syslog fixtures, validates the curated Sigma rules, proves positive/negative matching and deduplication across restart, tests ingestion with the detection service stopped, executes all three dashboards' queries, and confirms Grafana provisioning. Validate the Windows-only source configuration with `agents/windows/test-config.ps1` and the Vector 0.58.0 Windows executable.
 
-The fixture suite is not a substitute for real-sensor acceptance. The completed v0.4 Suricata acceptance is recorded in [docs/suricata-acceptance.md](docs/suricata-acceptance.md). A release still requires the complete local validator and repository CI to pass; do not create a release tag based on fixtures alone.
+The fixture suite is not a substitute for real-sensor acceptance. The completed v0.4 Suricata acceptance is recorded in [docs/suricata-acceptance.md](docs/suricata-acceptance.md). v0.5 real acceptance remains pending until controlled Windows, Linux, and Suricata activity produces detections and restart continuity is verified in the live lab. A release still requires the complete local validator and repository CI to pass; do not create a release tag based on fixtures alone.
 
 Contributions are welcome under the MIT license.

@@ -1,0 +1,21 @@
+{
+  "rule_id": "fusion-windows-encoded-powershell",
+  "positive": {
+    "event_id": 1,
+    "platform": "windows",
+    "source_type": "windows_sysmon",
+    "host_name": "WINDOWS-DETECTION-LAB",
+    "process_path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    "process_name": "powershell.exe",
+    "command_line": "powershell.exe -NoProfile -enc VwByAGkAdABlAC0ATwB1AHQAcAB1AHQAIAAnAEYAVQBTAEkATwBOACcA"
+  },
+  "negative": {
+    "event_id": 1,
+    "platform": "windows",
+    "source_type": "windows_sysmon",
+    "host_name": "WINDOWS-DETECTION-LAB",
+    "process_path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    "process_name": "powershell.exe",
+    "command_line": "powershell.exe -NoProfile -Command Get-Date"
+  }
+}

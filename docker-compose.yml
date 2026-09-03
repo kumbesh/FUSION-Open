@@ -99,6 +99,52 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  fusion-detection-engine:
+    build:
+      context: ./detections/engine
+    environment:
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-fusion}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-fusion-local-only}
+      FUSION_DETECTION_CLICKHOUSE_HOST: clickhouse
+      FUSION_DETECTION_CLICKHOUSE_PORT: "8123"
+      FUSION_DETECTION_CLICKHOUSE_DATABASE: fusion
+      FUSION_DETECTION_RULES_DIR: /rules
+      FUSION_DETECTION_MAPPING_PATH: /mappings/sigma_fields.yml
+      FUSION_DETECTION_MITRE_MAPPING_PATH: /mappings/mitre.yml
+      FUSION_DETECTION_POLL_SECONDS: ${FUSION_DETECTION_POLL_SECONDS:-10}
+      FUSION_DETECTION_LOOKBACK_SECONDS: ${FUSION_DETECTION_LOOKBACK_SECONDS:-120}
+      FUSION_DETECTION_BATCH_SIZE: ${FUSION_DETECTION_BATCH_SIZE:-1000}
+      FUSION_DETECTION_LOG_LEVEL: ${FUSION_DETECTION_LOG_LEVEL:-INFO}
+    volumes:
+      - ./detections/rules:/rules:ro
+      - ./detections/mappings:/mappings:ro
+      - ./samples/detections:/samples/detections:ro
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    networks:
+      - fusion-backend
+    healthcheck:
+      test:
+        - CMD
+        - fusion-detection
+        - healthcheck
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 15s
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 1.0
+    security_opt:
+      - no-new-privileges:true
+
 networks:
   fusion-backend:
     driver: bridge

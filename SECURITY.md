@@ -19,3 +19,15 @@ Future ingestion hardening should include HTTPS with scoped API tokens or mTLS a
 The Linux Vector service runs as root so it can read the normally restricted audit log. Keep the included systemd sandbox and dedicated state directories intact. Audit and command telemetry can contain usernames, command arguments, remote addresses, and other sensitive data; use synthetic accounts and disposable endpoints in the lab.
 
 The Suricata EVE shipper also runs as a sandboxed root service so it can read `/var/log/suricata`. It does not install or manage Suricata. Preserve the read-only source path, bounded buffers, restrictive state-directory permissions, and source-scoped firewall rules.
+
+## Detection rules and analytical results
+
+Detection rules are trusted, repository-controlled configuration. The detection engine reads normalized security events from ClickHouse and writes only to the detection/checkpoint tables using the lab's current ClickHouse credential. A production deployment must replace this shared credential with separately managed least-privilege accounts that grant event-table read access and detection/checkpoint write access only.
+
+Do not accept or automatically activate arbitrary Sigma YAML from untrusted users. The Fusion compiler enforces a strict field and operator allowlist, evaluates values in Python rather than interpolating them into SQL, and rejects unsupported constructs. This boundary reduces injection risk but does not replace review: a syntactically valid rule can still be expensive, noisy, misleading, or designed to expose sensitive event fields through evidence.
+
+Fusion does not download community rules, MITRE data, or other executable configuration at runtime. Keep those controls intact. Review rule sources, metadata, expected matches, expected non-matches, and performance impact before merging.
+
+Detection evidence intentionally contains focused normalized context rather than the complete raw event, but it can still include usernames, command lines, hostnames, and network addresses. Apply the same access and retention controls used for source telemetry. Detection results are analytical signals, not guarantees that an event is malicious; validate context before taking action.
+
+The detection container has no host port and is isolated from ingestion. Stopping or crashing it must not interrupt Vector or ClickHouse. Preserve the non-root user, read-only filesystem, dropped capabilities, bounded resources, polling limits, and retry backoff in `docker-compose.yml`.

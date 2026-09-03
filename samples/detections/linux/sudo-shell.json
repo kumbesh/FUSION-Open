@@ -1,0 +1,21 @@
+{
+  "rule_id": "fusion-linux-sudo-shell",
+  "positive": {
+    "platform": "linux",
+    "source_type": "linux_auditd",
+    "host_name": "ubuntu-detection-lab",
+    "event_action": "sudo_command",
+    "user_name": "analyst",
+    "process_path": "/usr/bin/sudo",
+    "command_line": "/bin/bash"
+  },
+  "negative": {
+    "platform": "linux",
+    "source_type": "linux_auditd",
+    "host_name": "ubuntu-detection-lab",
+    "event_action": "sudo_command",
+    "user_name": "analyst",
+    "process_path": "/usr/bin/sudo",
+    "command_line": "/usr/bin/id"
+  }
+}

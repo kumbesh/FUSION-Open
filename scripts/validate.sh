@@ -16,7 +16,7 @@ fi
 fusion_assert_engine
 fusion_load_env
 
-echo "[1/10] Validating Docker Compose and secure HTTP/syslog bind modes..."
+echo "[1/12] Validating Docker Compose and secure HTTP/syslog bind modes..."
 fusion_compose config --quiet
 default_model=$(FUSION_BIND_ADDRESS=127.0.0.1 FUSION_SYSLOG_BIND_ADDRESS=127.0.0.1 fusion_compose config --format json)
 lab_model=$(FUSION_BIND_ADDRESS=192.0.2.10 FUSION_SYSLOG_BIND_ADDRESS=192.0.2.10 fusion_compose config --format json)
@@ -31,15 +31,15 @@ if [ "$(printf '%s' "$lab_model" | grep -c '"host_ip": "192.0.2.10"')" -lt 3 ]; 
   exit 1
 fi
 
-echo "[2/10] Running collector Vector configuration and VRL unit tests..."
+echo "[2/12] Running collector Vector configuration and VRL unit tests..."
 fusion_compose run --rm --no-deps vector validate --no-environment /etc/vector/vector.yaml
 fusion_compose run --rm --no-deps vector test /etc/vector/vector.yaml
 
-echo "[3/10] Validating the Suricata EVE Vector integration configuration..."
+echo "[3/12] Validating the Suricata EVE Vector integration configuration..."
 fusion_docker run --rm --entrypoint /bin/sh -v "$FUSION_ROOT:/work:ro" timberio/vector:0.58.0-alpine \
   /work/integrations/suricata/test-config.sh /usr/local/bin/vector
 
-echo "[4/10] Checking the live common ClickHouse schema..."
+echo "[4/12] Checking the live common ClickHouse and detection schemas..."
 schema_count=$(fusion_compose exec -T clickhouse clickhouse-client \
   --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" \
   --query "SELECT count() FROM system.columns WHERE database = 'fusion' AND table = 'sysmon_events' AND name IN ('provider_name','record_id','image_loaded','query_name','query_status','query_results','target_filename','target_object','registry_details','message','host_name','platform','source_type','event_category','event_action','event_code','source_event_id','user_name','user_id','process_name','process_path','parent_process_name','parent_process_id','service_name','outcome','severity','device_name','vendor','product','event_kind','ingestion_protocol','ingestion_path','source_address','original_format','network_direction','rule_id','signature','signature_id','url','domain','syslog_facility','syslog_application')")
@@ -47,8 +47,16 @@ if [ "$schema_count" -ne 42 ]; then
   echo "ClickHouse common event columns are missing. Run scripts/deploy.sh to apply migrations." >&2
   exit 1
 fi
+detection_schema=$(fusion_compose exec -T clickhouse clickhouse-client \
+  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" \
+  --query "SELECT countIf(table = 'sysmon_events' AND name = 'event_uid'), countIf(table = 'detections'), countIf(table = 'detection_checkpoints') FROM system.columns WHERE database = 'fusion' FORMAT TSV")
+expected_detection_schema=$(printf '1\t35\t4')
+if [ "$detection_schema" != "$expected_detection_schema" ]; then
+  echo "ClickHouse v0.5 detection schema is incomplete: $detection_schema" >&2
+  exit 1
+fi
 
-echo "[5/10] Proving v0.2-to-v0.3 and v0.3-to-v0.4 migrations preserve rows..."
+echo "[5/12] Proving v0.2-to-v0.3 and v0.3-to-v0.4 migrations preserve rows..."
 fusion_compose exec -T clickhouse clickhouse-client \
   --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --multiquery < "$FUSION_ROOT/clickhouse/tests/002_v02_schema.sql"
 migration_sql=$(mktemp)
@@ -99,8 +107,39 @@ fi
 cleanup_v04_migration_test
 trap - EXIT HUP INT TERM
 
-echo "[6/10] Checking container health..."
-for service in clickhouse vector grafana; do
+echo "[6/12] Proving the v0.4-to-v0.5 migration is preserving and idempotent..."
+fusion_compose exec -T clickhouse clickhouse-client \
+  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --multiquery < "$FUSION_ROOT/clickhouse/tests/004_v04_schema.sql"
+v05_migration_sql=$(mktemp)
+cleanup_v05_migration_test() {
+  rm -f "$v05_migration_sql"
+  fusion_compose exec -T clickhouse clickhouse-client \
+    --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" \
+    --query "DROP DATABASE IF EXISTS fusion_v05_migration_test" >/dev/null 2>&1 || true
+}
+trap cleanup_v05_migration_test EXIT HUP INT TERM
+sed \
+  -e 's/fusion\.sysmon_events/fusion_v05_migration_test.sysmon_events/g' \
+  -e 's/fusion\.detections/fusion_v05_migration_test.detections/g' \
+  -e 's/fusion\.detection_checkpoints/fusion_v05_migration_test.detection_checkpoints/g' \
+  "$FUSION_ROOT/clickhouse/migrations/005_detection_engine_v05.sql" > "$v05_migration_sql"
+fusion_compose exec -T clickhouse clickhouse-client \
+  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --multiquery < "$v05_migration_sql"
+fusion_compose exec -T clickhouse clickhouse-client \
+  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --multiquery < "$v05_migration_sql"
+v05_migration_result=$(fusion_compose exec -T clickhouse clickhouse-client \
+  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" \
+  --query "SELECT count(), countIf(platform = 'windows'), countIf(platform = 'linux'), countIf(source_type = 'suricata_eve'), countIf(source_type = 'generic_syslog'), uniqExact(event_uid), countIf(length(event_uid) = 64) FROM fusion_v05_migration_test.sysmon_events FORMAT TSV")
+expected_v05_migration=$(printf '4\t1\t1\t1\t1\t4\t4')
+if [ "$v05_migration_result" != "$expected_v05_migration" ]; then
+  echo "Existing v0.4 data was not preserved with deterministic event identities: $v05_migration_result" >&2
+  exit 1
+fi
+cleanup_v05_migration_test
+trap - EXIT HUP INT TERM
+
+echo "[7/12] Checking container health..."
+for service in clickhouse vector grafana fusion-detection-engine; do
   container_id=$(fusion_compose ps -q "$service")
   if [ -z "$container_id" ]; then
     echo "Service '$service' is not running. Run scripts/deploy.sh first." >&2
@@ -116,7 +155,7 @@ done
 run_id="fusion-$(date +%s)-$$"
 sample_count=0
 if [ "$skip_samples" = false ]; then
-  echo "[7/10] Sending Windows, Linux, security JSON, and TCP/UDP syslog fixtures..."
+  echo "[8/12] Sending Windows, Linux, security JSON, and TCP/UDP syslog fixtures..."
   event_time=$(date -u '+%Y-%m-%dT%H:%M:%S.000Z')
   for sample in "$FUSION_ROOT"/samples/sysmon/*.json "$FUSION_ROOT"/samples/windows-agent/*.json; do
     payload=$(sed -E \
@@ -180,10 +219,10 @@ if [ "$skip_samples" = false ]; then
       nc -u -w 1 "${FUSION_SYSLOG_BIND_ADDRESS:-127.0.0.1}" "${FUSION_SYSLOG_UDP_PORT:-5514}"
   done
 else
-  echo "[7/10] Sample ingestion skipped."
+  echo "[8/12] Sample ingestion skipped."
 fi
 
-echo "[8/10] Verifying v0.1-v0.3 compatibility and v0.4 normalized telemetry..."
+echo "[9/12] Verifying v0.1-v0.4 compatibility and normalized telemetry..."
 if [ "$skip_samples" = false ]; then
   query="SELECT count(), countIf(event_id = 1), countIf(event_id = 1 AND (positionCaseInsensitiveUTF8(image, 'powershell.exe') > 0 OR positionCaseInsensitiveUTF8(image, 'pwsh.exe') > 0)), countIf(event_id = 3), countIf(event_id = 22), countIf(event_id = 22 AND query_name = 'example.com'), countIf(position(raw_json, 'windows_event_log') > 0), countIf(position(raw_json, '<Event') > 0) FROM fusion.sysmon_events WHERE validation_id = '$run_id' AND platform = 'windows' FORMAT TSV"
   result="0\t0\t0\t0\t0\t0\t0\t0"
@@ -266,7 +305,7 @@ if [ "$skip_samples" = false ]; then
   echo "  SuricataRows=$security_total, SyslogRows=$syslog_total"
 fi
 
-echo "[9/10] Validating endpoint and security-source dashboard queries..."
+echo "[10/12] Validating endpoint and security-source dashboard queries..."
 dashboard="$FUSION_ROOT/grafana/dashboards/fusion-security-overview.json"
 for title in "Top DNS queries" "Top executed processes" "External network destinations" "Sysmon events by Event ID" "Events by platform" "Top Linux executed processes" "Events by source type" "Failed authentication attempts" "Authentication activity" "sudo activity" "Linux process executions"; do
   grep -q "\"title\": \"$title\"" "$dashboard"
@@ -327,7 +366,10 @@ if [ "$skip_samples" = false ]; then
   fi
 fi
 
-echo "[10/10] Checking Grafana, its data source, and both provisioned dashboards..."
+echo "[11/12] Running detection engine acceptance tests..."
+"$SCRIPT_DIR/validate-detections.sh"
+
+echo "[12/12] Checking Grafana, its data source, and all provisioned dashboards..."
 grafana_base="http://127.0.0.1:${FUSION_GRAFANA_PORT:-3000}"
 curl -fsS "$grafana_base/api/health" >/dev/null
 datasource_health=$(curl -fsS -u "$GRAFANA_ADMIN_USER:$GRAFANA_ADMIN_PASSWORD" \
@@ -355,4 +397,16 @@ for variable in computer platform vendor product source ingestion; do
   printf '%s' "$provisioned_security_dashboard" | grep -Fq "\"name\":\"$variable\""
 done
 
-echo "Validation passed: secure bindings, v0.1-v0.3 compatibility, v0.4 JSON/syslog normalization, migrations, storage, and dashboards are healthy."
+detection_dashboards=$(curl -fsS -u "$GRAFANA_ADMIN_USER:$GRAFANA_ADMIN_PASSWORD" \
+  "$grafana_base/api/search?query=Fusion%20Detections")
+printf '%s' "$detection_dashboards" | grep -q 'fusion-detections'
+provisioned_detection_dashboard=$(curl -fsS -u "$GRAFANA_ADMIN_USER:$GRAFANA_ADMIN_PASSWORD" \
+  "$grafana_base/api/dashboards/uid/fusion-detections")
+for title in "Total detections" "New detections" "High/Critical detections" "Detections over time" "Detections by severity" "Detections by rule" "Detections by platform" "Detections by source type" "Detections by host" "Top affected users" "Top source IPs" "Top destination IPs" "MITRE tactics" "MITRE techniques" "Recent detections"; do
+  printf '%s' "$provisioned_detection_dashboard" | grep -Fq "\"title\":\"$title\""
+done
+for variable in severity status platform host rule tactic technique; do
+  printf '%s' "$provisioned_detection_dashboard" | grep -Fq "\"name\":\"$variable\""
+done
+
+echo "Validation passed: v0.1-v0.4 ingestion, v0.5 detections, migrations, restart safety, storage, and all dashboards are healthy."

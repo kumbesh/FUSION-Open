@@ -1,0 +1,21 @@
+title: Linux Authentication Failure
+id: fusion-linux-authentication-failure
+status: test
+description: Detects a normalized Linux authentication failure without applying a correlation threshold.
+author: Fusion Project
+date: 2026-09-04
+tags:
+  - attack.credential_access
+  - attack.t1110
+logsource:
+  product: linux
+  service: linux_journald
+detection:
+  selection:
+    Category: authentication
+    Outcome: failure
+    User|exists: true
+  condition: selection
+falsepositives:
+  - User typing error or expired credentials.
+level: low

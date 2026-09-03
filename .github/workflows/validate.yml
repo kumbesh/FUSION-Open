@@ -12,7 +12,7 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -47,6 +47,13 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v5
 
+      - name: Check PowerShell syntax
+        shell: pwsh
+        run: |
+          Get-ChildItem -Recurse -Filter '*.ps1' | ForEach-Object {
+            [void][scriptblock]::Create([IO.File]::ReadAllText($_.FullName))
+          }
+
       - name: Download and verify Vector 0.58.0 for Windows
         shell: pwsh
         run: |
@@ -74,6 +81,8 @@ jobs:
 
       - name: Check Linux agent shell scripts
         run: |
+          for script in scripts/*.sh; do sh -n "$script"; done
+          shellcheck -x scripts/validate-detections.sh
           for script in agents/linux/*.sh; do sh -n "$script"; done
           shellcheck agents/linux/*.sh
           for script in integrations/suricata/*.sh; do sh -n "$script"; done
@@ -116,3 +125,36 @@ jobs:
             -e 's|^ExecStart=.*|ExecStart=/bin/true|' \
             integrations/suricata/fusion-suricata-vector.service > "$suricata_unit"
           systemd-analyze verify "$suricata_unit"
+
+  validate-detection-engine:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            detections/engine/requirements.txt
+            detections/engine/requirements-dev.txt
+
+      - name: Install detection test dependencies
+        run: |
+          python -m pip install --requirement detections/engine/requirements-dev.txt
+          python -m pip install --no-deps --editable detections/engine
+
+      - name: Run detection unit and security tests
+        run: python -m pytest detections/tests
+
+      - name: Validate curated Sigma rules
+        run: >-
+          fusion-detection validate-rules
+          --rules-dir detections/rules
+          --mapping detections/mappings/sigma_fields.yml
+
+      - name: Build the hardened detection image
+        run: docker compose build fusion-detection-engine

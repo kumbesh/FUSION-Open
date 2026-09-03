@@ -1,0 +1,24 @@
+title: Query to Selected Dynamic DNS Domain
+id: fusion-network-dynamic-dns-query
+status: test
+description: Detects DNS queries to a small reviewable set of dynamic DNS suffixes.
+author: Fusion Project
+date: 2026-09-04
+tags:
+  - attack.command_and_control
+logsource:
+  product: network
+  service: suricata
+detection:
+  selection_dns_category:
+    Category: dns
+  selection_dns_action:
+    Action: dns_query
+  selection_domain:
+    QueryName|endswith:
+      - '.duckdns.org'
+      - '.ddns.net'
+  condition: (selection_dns_category or selection_dns_action) and selection_domain
+falsepositives:
+  - Legitimate services hosted on dynamic DNS providers.
+level: low

