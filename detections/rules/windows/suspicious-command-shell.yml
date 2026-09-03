@@ -1,0 +1,28 @@
+title: Suspicious Windows Command Shell Chain
+id: fusion-windows-suspicious-command-shell
+status: test
+description: Detects cmd.exe launching a controlled set of suspicious chained utilities.
+author: Fusion Project
+date: 2026-09-04
+tags:
+  - attack.execution
+  - attack.t1059
+logsource:
+  product: windows
+  service: sysmon
+detection:
+  selection_shell:
+    EventID: 1
+    Image|endswith: '\cmd.exe'
+  selection_behavior_certutil:
+    CommandLine|contains: 'certutil -urlcache'
+  selection_behavior_powershell:
+    CommandLine|contains: '&& powershell'
+  selection_behavior_bitsadmin:
+    CommandLine|contains: 'bitsadmin /transfer'
+  filter_benign:
+    CommandLine|contains: 'FUSION-ALLOW-TEST'
+  condition: selection_shell and 1 of selection_behavior_* and not filter_benign
+falsepositives:
+  - Legacy administrative scripts using the selected utilities.
+level: medium

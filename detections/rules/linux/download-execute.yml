@@ -1,0 +1,29 @@
+title: Potential Linux Download and Execute Command
+id: fusion-linux-download-execute
+status: test
+description: Detects curl or wget with pipe-to-shell or controlled temporary-file execution indicators.
+author: Fusion Project
+date: 2026-09-04
+tags:
+  - attack.command_and_control
+  - attack.t1105
+  - attack.execution
+  - attack.t1059.004
+logsource:
+  product: linux
+  service: linux_auditd
+detection:
+  selection_tool:
+    Image|endswith:
+      - '/curl'
+      - '/wget'
+  selection_execution:
+    CommandLine|contains:
+      - '| sh'
+      - '| bash'
+      - '-o /tmp/'
+      - '-O /tmp/'
+  condition: selection_tool and selection_execution
+falsepositives:
+  - Controlled bootstrap scripts from trusted repositories.
+level: high

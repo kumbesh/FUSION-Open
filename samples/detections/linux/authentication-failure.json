@@ -1,0 +1,23 @@
+{
+  "rule_id": "fusion-linux-authentication-failure",
+  "positive": {
+    "platform": "linux",
+    "source_type": "linux_journald",
+    "host_name": "ubuntu-detection-lab",
+    "event_category": "authentication",
+    "event_action": "ssh_login",
+    "outcome": "failure",
+    "user_name": "test-user",
+    "source_ip": "192.0.2.30"
+  },
+  "negative": {
+    "platform": "linux",
+    "source_type": "linux_journald",
+    "host_name": "ubuntu-detection-lab",
+    "event_category": "authentication",
+    "event_action": "ssh_login",
+    "outcome": "success",
+    "user_name": "test-user",
+    "source_ip": "192.0.2.30"
+  }
+}

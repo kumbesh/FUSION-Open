@@ -15,7 +15,7 @@
     "proto": "TCP",
     "alert": {
       "action": "allowed",
-      "signature_id": 2100498,
+      "signature_id": 9000001,
       "rev": 7,
       "signature": "FUSION TEST Suricata TLS alert",
       "category": "Potentially Bad Traffic",

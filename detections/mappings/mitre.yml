@@ -1,0 +1,17 @@
+tactics:
+  credential_access: Credential Access
+  defense_evasion: Defense Evasion
+  execution: Execution
+  persistence: Persistence
+  privilege_escalation: Privilege Escalation
+  command_and_control: Command and Control
+
+techniques:
+  t1059: Command and Scripting Interpreter
+  t1059.001: PowerShell
+  t1059.004: Unix Shell
+  t1105: Ingress Tool Transfer
+  t1110: Brute Force
+  t1218: System Binary Proxy Execution
+  t1218.005: Mshta
+  t1218.010: Regsvr32

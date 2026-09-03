@@ -38,6 +38,7 @@ $syslogTcpPort = if ($settings.ContainsKey("FUSION_SYSLOG_TCP_PORT") -and $setti
 $syslogUdpPort = if ($settings.ContainsKey("FUSION_SYSLOG_UDP_PORT") -and $settings.FUSION_SYSLOG_UDP_PORT) { $settings.FUSION_SYSLOG_UDP_PORT } else { "5514" }
 $grafanaPort = if ($settings.ContainsKey("FUSION_GRAFANA_PORT") -and $settings.FUSION_GRAFANA_PORT) { $settings.FUSION_GRAFANA_PORT } else { "3000" }
 Write-Host "Fusion is ready."
+Write-Host "Detection engine: running without a host port"
 Write-Host "Grafana:         http://localhost:$grafanaPort"
 Write-Host "Windows ingest:  http://$bindAddress`:$ingestPort/sysmon"
 Write-Host "Linux ingest:    http://$bindAddress`:$ingestPort/linux"

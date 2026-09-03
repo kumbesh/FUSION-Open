@@ -1,0 +1,24 @@
+title: High-Severity Suricata Alert
+id: fusion-network-high-severity-suricata-alert
+status: test
+description: Promotes normalized high or critical Suricata alerts into Fusion detections.
+author: Fusion Project
+date: 2026-09-04
+tags:
+  - attack.command_and_control
+logsource:
+  product: network
+  service: suricata
+detection:
+  selection_kind:
+    EventKind: alert
+  selection_severity:
+    Severity:
+      - high
+      - critical
+  selection_signature:
+    Signature|exists: true
+  condition: all of selection_*
+falsepositives:
+  - Depends on the quality and tuning of the originating Suricata rule.
+level: high

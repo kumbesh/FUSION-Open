@@ -1,0 +1,27 @@
+{
+  "rule_id": "fusion-network-dynamic-dns-query",
+  "positive": {
+    "platform": "network",
+    "source_type": "suricata_eve",
+    "vendor": "OISF",
+    "product": "Suricata",
+    "host_name": "suricata-detection-lab",
+    "event_category": "dns",
+    "event_action": "dns_query",
+    "domain": "fusion-lab.duckdns.org",
+    "destination_port": 53,
+    "protocol": "udp"
+  },
+  "negative": {
+    "platform": "network",
+    "source_type": "suricata_eve",
+    "vendor": "OISF",
+    "product": "Suricata",
+    "host_name": "suricata-detection-lab",
+    "event_category": "dns",
+    "event_action": "dns_query",
+    "domain": "example.com",
+    "destination_port": 53,
+    "protocol": "udp"
+  }
+}

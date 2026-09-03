@@ -1,0 +1,28 @@
+title: Encoded PowerShell Command
+id: fusion-windows-encoded-powershell
+status: test
+description: Detects PowerShell process creation with encoded-command switches.
+author: Fusion Project
+date: 2026-09-04
+tags:
+  - attack.execution
+  - attack.t1059.001
+logsource:
+  product: windows
+  service: sysmon
+detection:
+  selection_process:
+    EventID: 1
+    Image|endswith:
+      - '\powershell.exe'
+      - '\pwsh.exe'
+  selection_flag_short:
+    CommandLine|contains: ' -enc '
+  selection_flag_long:
+    CommandLine|contains:
+      - ' -encodedcommand '
+      - ' /encodedcommand '
+  condition: selection_process and 1 of selection_flag_*
+falsepositives:
+  - Approved administrative automation using encoded commands.
+level: high

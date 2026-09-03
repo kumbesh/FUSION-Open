@@ -1,0 +1,56 @@
+fields:
+  EventID: event_id
+  EventCode: event_code
+  Category: event_category
+  Action: event_action
+  EventKind: event_kind
+  Platform: platform
+  Vendor: vendor
+  Product: product
+  SourceType: source_type
+  Computer: host_name
+  Hostname: host_name
+  User: user_name
+  UserId: user_id
+  Image: process_path
+  ProcessName: process_name
+  CommandLine: command_line
+  ParentImage: parent_process_name
+  ParentProcessId: parent_process_id
+  Service: service_name
+  Outcome: outcome
+  Severity: severity
+  SourceIp: source_ip
+  SourcePort: source_port
+  DestinationIp: destination_ip
+  DestinationPort: destination_port
+  DestinationHostname: destination_hostname
+  Protocol: protocol
+  QueryName: domain
+  Domain: domain
+  Signature: signature
+  SignatureId: signature_id
+  Url: url
+  NetworkDirection: network_direction
+  IngestionProtocol: ingestion_protocol
+  IngestionPath: ingestion_path
+  SyslogApplication: syslog_application
+  SyslogFacility: syslog_facility
+
+logsource:
+  product:
+    windows:
+      platform: windows
+    linux:
+      platform: linux
+    network:
+      platform: network
+  service:
+    sysmon:
+      source_type: windows_sysmon
+    linux_auditd:
+      source_type: linux_auditd
+    linux_journald:
+      source_type: linux_journald
+    suricata:
+      source_type: suricata_eve

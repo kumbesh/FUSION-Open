@@ -10,5 +10,6 @@ Thank you for improving Fusion.
 6. Never commit `.env`, credentials, real hostnames, or production telemetry.
 7. Add new security tools through the `/security` envelope and shared table; do not add vendor-specific tables or parallel pipelines without an approved architecture change.
 8. Do not treat fixtures as real-integration acceptance. Record manual sensor evidence for release gates that require live telemetry.
+9. Detection rules must use the documented Sigma subset, normalized allowlisted fields, stable unique IDs, conservative severity, and positive plus negative fixtures. Run `fusion-detection validate-rules` and the detection unit tests before review.
 
 Bug reports should include the operating system, Docker and Compose versions, relevant container logs, and steps to reproduce. Sample events must be synthetic and free of sensitive data.

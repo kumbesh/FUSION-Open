@@ -1,0 +1,31 @@
+title: Suspicious Windows LOLBin With Remote or Script Input
+id: fusion-windows-suspicious-lolbin
+status: test
+description: Detects selected proxy-execution binaries only when command-line indicators suggest remote or script content.
+author: Fusion Project
+date: 2026-09-04
+tags:
+  - attack.defense_evasion
+  - attack.t1218
+  - attack.t1218.005
+  - attack.t1218.010
+logsource:
+  product: windows
+  service: sysmon
+detection:
+  selection_image:
+    EventID: 1
+    Image|endswith:
+      - '\mshta.exe'
+      - '\regsvr32.exe'
+      - '\rundll32.exe'
+  selection_indicator:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'javascript:'
+      - 'scrobj.dll'
+  condition: selection_image and selection_indicator
+falsepositives:
+  - Software deployment or troubleshooting using these binaries with remote resources.
+level: high
