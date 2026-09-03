@@ -209,8 +209,10 @@ transforms:
       original = .
       source_kind = to_string(.source_type) ?? "linux_unknown"
       message = to_string(.message) ?? ""
-      host_raw = .host_name || .host || ._HOSTNAME || "unknown"
-      host_name = to_string(host_raw) ?? "unknown"
+      host_name = to_string(.host_name) ?? ""
+      if host_name == "" { host_name = to_string(.host) ?? "" }
+      if host_name == "" { host_name = to_string(._HOSTNAME) ?? "" }
+      if host_name == "" { host_name = "unknown" }
       source_time_raw = .timestamp || ."@timestamp"
       source_time_text = to_string(source_time_raw) ?? ""
       event_time = parse_timestamp(source_time_text, format: "%+") ?? now()
@@ -703,6 +705,7 @@ tests:
         type: log
         log_fields:
           source_type: linux_journald
+          host_name: ""
           host: ubuntu-lab
           timestamp: "2026-09-03T08:02:00.000Z"
           SYSLOG_IDENTIFIER: sshd
@@ -769,4 +772,4 @@ tests:
       - extract_from: normalize_linux
         conditions:
           - type: vrl
-            source: '.event_category == "service" && .event_action == "service_start" && .service_name == "fusion-lab.service" && .outcome == "success"'
+            source: '.host_name == "ubuntu-lab" && .event_category == "service" && .event_action == "service_start" && .service_name == "fusion-lab.service" && .outcome == "success"'

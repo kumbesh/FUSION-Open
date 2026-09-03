@@ -67,7 +67,10 @@ transforms:
     source: |-
       .source_platform = "linux"
       .source_type = "linux_journald"
-      .host_name = to_string(._HOSTNAME) ?? to_string(.host) ?? get_hostname!()
+      host_name = to_string(._HOSTNAME) ?? ""
+      if host_name == "" { host_name = to_string(.host) ?? "" }
+      if host_name == "" { host_name = get_hostname!() }
+      .host_name = host_name
 
 sinks:
   fusion_collector:
