@@ -41,6 +41,12 @@ echo "Fusion is ready."
 echo "Grafana: http://localhost:${FUSION_GRAFANA_PORT:-3000}"
 echo "Windows ingest: http://${FUSION_BIND_ADDRESS:-127.0.0.1}:${FUSION_INGEST_PORT:-8686}/sysmon"
 echo "Linux ingest:   http://${FUSION_BIND_ADDRESS:-127.0.0.1}:${FUSION_INGEST_PORT:-8686}/linux"
+echo "Security ingest: http://${FUSION_BIND_ADDRESS:-127.0.0.1}:${FUSION_INGEST_PORT:-8686}/security"
+echo "Syslog TCP:      ${FUSION_SYSLOG_BIND_ADDRESS:-127.0.0.1}:${FUSION_SYSLOG_TCP_PORT:-5514}"
+echo "Syslog UDP:      ${FUSION_SYSLOG_BIND_ADDRESS:-127.0.0.1}:${FUSION_SYSLOG_UDP_PORT:-5514}"
 if [ "${FUSION_BIND_ADDRESS:-127.0.0.1}" != "127.0.0.1" ]; then
   echo "WARNING: Ingestion has no TLS or authentication. Restrict TCP ${FUSION_INGEST_PORT:-8686} to the isolated test VM or lab subnet." >&2
+fi
+if [ "${FUSION_SYSLOG_BIND_ADDRESS:-127.0.0.1}" != "127.0.0.1" ]; then
+  echo "WARNING: Syslog is plaintext and unauthenticated. Restrict TCP/UDP ${FUSION_SYSLOG_TCP_PORT:-5514}/${FUSION_SYSLOG_UDP_PORT:-5514} to isolated lab sources." >&2
 fi

@@ -1,0 +1,25 @@
+{
+  "vendor": "OISF",
+  "product": "Suricata",
+  "source_type": "suricata_eve",
+  "platform": "network",
+  "device_name": "fusion-suricata-sensor",
+  "event": {
+    "timestamp": "2026-09-03T12:00:00.123456Z",
+    "flow_id": 1234567890123456,
+    "event_type": "alert",
+    "src_ip": "192.0.2.20",
+    "src_port": 51515,
+    "dest_ip": "198.51.100.40",
+    "dest_port": 443,
+    "proto": "TCP",
+    "alert": {
+      "action": "allowed",
+      "signature_id": 2100498,
+      "rev": 7,
+      "signature": "FUSION TEST Suricata TLS alert",
+      "category": "Potentially Bad Traffic",
+      "severity": 2
+    }
+  }
+}

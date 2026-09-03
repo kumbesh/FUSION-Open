@@ -1,0 +1,122 @@
+data_dir: '__FUSION_DATA_DIR__'
+
+sources:
+  suricata_eve:
+    type: file
+    include:
+      - '__SURICATA_EVE_PATH__'
+    read_from: end
+    ignore_not_found: false
+    host_key: fusion_agent_host
+    file_key: fusion_source_file
+    offset_key: fusion_source_offset
+    max_line_bytes: 1048576
+
+  vector_internal_logs:
+    type: internal_logs
+
+transforms:
+  exclude_fusion_collector_traffic:
+    type: filter
+    inputs:
+      - suricata_eve
+    condition: |-
+      eve, parse_error = parse_json(to_string(.message) ?? "")
+      if parse_error != null {
+        true
+      } else {
+        destination_ip = to_string(eve.dest_ip) ?? ""
+        destination_port = to_int(eve.dest_port) ?? 0
+        !(destination_ip == "__FUSION_COLLECTOR_IP__" && destination_port == __FUSION_COLLECTOR_PORT__)
+      }
+
+  wrap_suricata_eve:
+    type: remap
+    inputs:
+      - exclude_fusion_collector_traffic
+    drop_on_abort: true
+    reroute_dropped: true
+    source: |-
+      original_line = to_string!(.message)
+      eve = object!(parse_json!(original_line))
+      source_file = to_string(.fusion_source_file) ?? ""
+      source_offset = to_int(.fusion_source_offset) ?? 0
+      source_host = to_string(.fusion_agent_host) ?? ""
+      . = {
+        "vendor": "OISF",
+        "product": "Suricata",
+        "source_type": "suricata_eve",
+        "platform": "network",
+        "device_name": "__SURICATA_SENSOR_NAME__",
+        "event": eve,
+        "source_file": source_file,
+        "source_offset": source_offset,
+        "source_host": source_host
+      }
+
+sinks:
+  fusion_collector:
+    type: http
+    inputs:
+      - wrap_suricata_eve
+    uri: '__FUSION_COLLECTOR_URL__'
+    method: post
+    compression: none
+    framing:
+      method: bytes
+    encoding:
+      codec: json
+    batch:
+      max_events: 1
+      max_bytes: 1048576
+      timeout_secs: 1
+    buffer:
+      type: disk
+      max_size: 268435488
+      when_full: block
+    acknowledgements:
+      enabled: true
+    healthcheck:
+      enabled: false
+    request:
+      retry_attempts: 10
+      retry_initial_backoff_secs: 1
+      retry_max_duration_secs: 30
+
+  local_agent_logs:
+    type: file
+    inputs:
+      - vector_internal_logs
+    path: '__FUSION_LOG_DIR__/vector-%Y-%m-%d.log'
+    encoding:
+      codec: json
+
+  invalid_eve_logs:
+    type: file
+    inputs:
+      - wrap_suricata_eve.dropped
+    path: '__FUSION_LOG_DIR__/invalid-eve-%Y-%m-%d.log'
+    encoding:
+      codec: json
+
+tests:
+  - name: drop_fusion_collector_feedback
+    inputs:
+      - insert_at: exclude_fusion_collector_traffic
+        type: log
+        log_fields:
+          message: '{"event_type":"http","src_ip":"192.0.2.20","dest_ip":"__FUSION_COLLECTOR_IP__","dest_port":__FUSION_COLLECTOR_PORT__}'
+    no_outputs_from:
+      - exclude_fusion_collector_traffic
+
+  - name: retain_unrelated_suricata_traffic
+    inputs:
+      - insert_at: exclude_fusion_collector_traffic
+        type: log
+        log_fields:
+          message: '{"event_type":"dns","src_ip":"192.0.2.20","dest_ip":"198.51.100.53","dest_port":53}'
+    outputs:
+      - extract_from: exclude_fusion_collector_traffic
+        conditions:
+          - type: vrl
+            source: 'contains(to_string(.message) ?? "", "198.51.100.53")'

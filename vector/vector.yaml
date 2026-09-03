@@ -12,12 +12,27 @@ sources:
     path: /
     strict_path: false
     response_code: 202
+    host_key: fusion_transport_source
+    path_key: path
     headers:
       - X-Fusion-Validation-Id
     framing:
       method: bytes
     decoding:
       codec: json
+
+  fusion_syslog_tcp:
+    type: syslog
+    address: 0.0.0.0:5514
+    mode: tcp
+    max_length: 65536
+    connection_limit: 100
+
+  fusion_syslog_udp:
+    type: syslog
+    address: 0.0.0.0:5514
+    mode: udp
+    max_length: 65536
 
 transforms:
   ingest_routes:
@@ -27,6 +42,7 @@ transforms:
     route:
       sysmon: '.path == "/sysmon"'
       linux: '.path == "/linux"'
+      security: '.path == "/security"'
 
   normalize_sysmon:
     type: remap
@@ -145,6 +161,7 @@ transforms:
       message = to_string(message_raw) ?? ""
       validation_id_raw = ."X-Fusion-Validation-Id" || ."x-fusion-validation-id" || .validation_id || ""
       validation_id = to_string(validation_id_raw) ?? ""
+      source_address = to_string(.fusion_transport_source) ?? ""
 
       . = {
         "event_time": format_timestamp!(event_time, format: "%Y-%m-%d %H:%M:%S%.3f"),
@@ -196,7 +213,23 @@ transforms:
         "parent_process_id": parent_process_id,
         "service_name": "",
         "outcome": "unknown",
-        "severity": "info"
+        "severity": "info",
+        "device_name": computer,
+        "vendor": "Microsoft",
+        "product": "Sysmon",
+        "event_kind": "event",
+        "ingestion_protocol": "http",
+        "ingestion_path": "/sysmon",
+        "source_address": source_address,
+        "original_format": "json",
+        "network_direction": "",
+        "rule_id": "",
+        "signature": "",
+        "signature_id": "",
+        "url": "",
+        "domain": query_name,
+        "syslog_facility": "",
+        "syslog_application": ""
       }
 
   normalize_linux:
@@ -218,6 +251,7 @@ transforms:
       event_time = parse_timestamp(source_time_text, format: "%+") ?? now()
       validation_id_raw = ."X-Fusion-Validation-Id" || ."x-fusion-validation-id" || .validation_id || ""
       validation_id = to_string(validation_id_raw) ?? ""
+      source_address = to_string(.fusion_transport_source) ?? ""
 
       event_code = ""
       source_event_id = ""
@@ -407,6 +441,8 @@ transforms:
         severity = if priority <= 3 || outcome == "failure" { "error" } else if priority == 4 { "warning" } else { "info" }
       }
 
+      linux_product = if source_kind == "linux_auditd" { "auditd" } else { "systemd-journald" }
+
       . = {
         "event_time": format_timestamp!(event_time, format: "%Y-%m-%d %H:%M:%S%.3f"),
         "event_id": 0,
@@ -457,7 +493,269 @@ transforms:
         "parent_process_id": parent_process_id,
         "service_name": service_name,
         "outcome": outcome,
-        "severity": severity
+        "severity": severity,
+        "device_name": host_name,
+        "vendor": "Fusion",
+        "product": linux_product,
+        "event_kind": "event",
+        "ingestion_protocol": "http",
+        "ingestion_path": "/linux",
+        "source_address": source_address,
+        "original_format": "json",
+        "network_direction": "",
+        "rule_id": "",
+        "signature": "",
+        "signature_id": "",
+        "url": "",
+        "domain": "",
+        "syslog_facility": "",
+        "syslog_application": ""
+      }
+
+  normalize_security:
+    type: remap
+    inputs:
+      - ingest_routes.security
+    drop_on_abort: true
+    reroute_dropped: true
+    source: |-
+      original = .
+      if length(encode_json(original)) > 1048576 { abort }
+      payload = object!(.event)
+
+      vendor = to_string(.vendor || "generic") ?? "generic"
+      product = to_string(.product || "generic") ?? "generic"
+      source_kind = to_string(.source_type || "generic_json") ?? "generic_json"
+      platform = to_string(.platform || "network") ?? "network"
+      host_name = to_string(.host_name || .device_name || .sensor_name || payload.host || "unknown") ?? "unknown"
+      device_name = to_string(.device_name || host_name) ?? host_name
+      source_address = to_string(.fusion_transport_source || "") ?? ""
+      validation_id = to_string(."X-Fusion-Validation-Id" || ."x-fusion-validation-id" || .validation_id || "") ?? ""
+
+      source_time_raw = payload.timestamp || payload."@timestamp" || .timestamp || ."@timestamp"
+      source_time_text = to_string(source_time_raw) ?? ""
+      event_time = parse_timestamp(source_time_text, format: "%+") ?? now()
+      eve_type = downcase(to_string(payload.event_type) ?? to_string(.event_type) ?? "event")
+      is_suricata = downcase(product) == "suricata" || source_kind == "suricata_eve"
+
+      event_category = to_string(.event_category || payload.event_category || "other") ?? "other"
+      event_action = to_string(.event_action || payload.event_action || eve_type) ?? eve_type
+      event_kind = to_string(.event_kind || payload.event_kind || "event") ?? "event"
+      severity = downcase(to_string(.severity || payload.severity || "info") ?? "info")
+      outcome = downcase(to_string(.outcome || payload.outcome || "unknown") ?? "unknown")
+
+      source_ip = to_string(payload.src_ip || payload.source_ip || payload.source.ip || "") ?? ""
+      source_port = to_int(payload.src_port || payload.source_port || payload.source.port || 0) ?? 0
+      destination_ip = to_string(payload.dest_ip || payload.destination_ip || payload.destination.ip || "") ?? ""
+      destination_port = to_int(payload.dest_port || payload.destination_port || payload.destination.port || 0) ?? 0
+      protocol = downcase(to_string(payload.proto || payload.protocol || payload.network.transport || "") ?? "")
+      network_direction = downcase(to_string(.network_direction || payload.direction || "") ?? "")
+      signature = to_string(payload.alert.signature || payload.signature || "") ?? ""
+      signature_id = to_string(payload.alert.signature_id || payload.signature_id || "") ?? ""
+      rule_id = to_string(payload.rule_id || signature_id) ?? signature_id
+      domain = to_string(payload.dns.rrname || payload.dns.query.rrname || payload.dns.queries[0].rrname || payload.dns.answers[0].rrname || payload.http.hostname || payload.tls.sni || payload.domain || "") ?? ""
+      url = to_string(payload.url || "") ?? ""
+      http_path = to_string(payload.http.url || "") ?? ""
+      if url == "" && http_path != "" {
+        http_host = to_string(payload.http.hostname) ?? ""
+        url = if http_host != "" { "http://" + http_host + http_path } else { http_path }
+      }
+      message = to_string(payload.message || signature) ?? signature
+      source_event_id = to_string(payload.flow_id || payload.id || "") ?? ""
+      event_code = to_string(payload.event_type || payload.event_code || eve_type) ?? eve_type
+
+      if is_suricata {
+        vendor = if vendor == "generic" { "OISF" } else { vendor }
+        product = "Suricata"
+        source_kind = "suricata_eve"
+        platform = "network"
+        event_kind = if eve_type == "alert" { "alert" } else { "event" }
+        event_category = if eve_type == "alert" { "intrusion_detection" } else if eve_type == "dns" { "dns" } else if eve_type == "http" { "web" } else if eve_type == "tls" || eve_type == "flow" { "network" } else { "other" }
+        event_action = if eve_type == "alert" { "network_alert" } else if eve_type == "dns" { "dns_query" } else if eve_type == "http" { "http_request" } else if eve_type == "tls" { "tls_session" } else if eve_type == "flow" { "network_flow" } else { "suricata_event" }
+        alert_severity = to_int(payload.alert.severity) ?? 0
+        if eve_type == "alert" {
+          severity = if alert_severity == 1 { "high" } else if alert_severity == 2 { "medium" } else if alert_severity == 3 { "low" } else { "info" }
+          alert_action = downcase(to_string(payload.alert.action) ?? "")
+          outcome = if alert_action == "blocked" { "blocked" } else if alert_action == "allowed" { "allowed" } else { "unknown" }
+        }
+      }
+
+      query_name = if eve_type == "dns" { domain } else { "" }
+      query_status = if eve_type == "dns" { to_string(payload.dns.rcode) ?? "" } else { "" }
+      query_results = if eve_type == "dns" { encode_json(payload.dns.answers || payload.dns.grouped || []) } else { "" }
+
+      . = {
+        "event_time": format_timestamp!(event_time, format: "%Y-%m-%d %H:%M:%S%.3f"),
+        "event_id": 0,
+        "event_type": event_action,
+        "channel": "security_tools",
+        "provider_name": product,
+        "record_id": 0,
+        "computer": host_name,
+        "user": "",
+        "process_guid": "",
+        "process_id": 0,
+        "image": "",
+        "image_loaded": "",
+        "command_line": "",
+        "parent_image": "",
+        "parent_command_line": "",
+        "powershell_script": "",
+        "source_ip": source_ip,
+        "source_port": source_port,
+        "destination_ip": destination_ip,
+        "destination_port": destination_port,
+        "destination_hostname": domain,
+        "query_name": query_name,
+        "query_status": query_status,
+        "query_results": query_results,
+        "target_filename": "",
+        "target_object": "",
+        "registry_details": "",
+        "protocol": protocol,
+        "initiated": 0,
+        "hashes": "",
+        "rule_name": signature,
+        "message": message,
+        "validation_id": validation_id,
+        "raw_json": encode_json(original),
+        "host_name": host_name,
+        "platform": platform,
+        "source_type": source_kind,
+        "event_category": event_category,
+        "event_action": event_action,
+        "event_code": event_code,
+        "source_event_id": source_event_id,
+        "user_name": "",
+        "user_id": "",
+        "process_name": "",
+        "process_path": "",
+        "parent_process_name": "",
+        "parent_process_id": 0,
+        "service_name": "",
+        "outcome": outcome,
+        "severity": severity,
+        "device_name": device_name,
+        "vendor": vendor,
+        "product": product,
+        "event_kind": event_kind,
+        "ingestion_protocol": "http",
+        "ingestion_path": "/security",
+        "source_address": source_address,
+        "original_format": "json",
+        "network_direction": network_direction,
+        "rule_id": rule_id,
+        "signature": signature,
+        "signature_id": signature_id,
+        "url": url,
+        "domain": domain,
+        "syslog_facility": "",
+        "syslog_application": ""
+      }
+
+  tag_syslog_tcp:
+    type: remap
+    inputs:
+      - fusion_syslog_tcp
+    source: '.fusion_ingestion_protocol = "syslog_tcp"'
+
+  tag_syslog_udp:
+    type: remap
+    inputs:
+      - fusion_syslog_udp
+    source: '.fusion_ingestion_protocol = "syslog_udp"'
+
+  normalize_syslog:
+    type: remap
+    inputs:
+      - tag_syslog_tcp
+      - tag_syslog_udp
+    drop_on_abort: true
+    reroute_dropped: true
+    source: |-
+      original = .
+      message = to_string(.message) ?? ""
+      host_name = to_string(.hostname) ?? to_string(.host) ?? "unknown"
+      source_address = to_string(.source_ip) ?? ""
+      ingestion_protocol = to_string(.fusion_ingestion_protocol) ?? "syslog"
+      syslog_application = to_string(.appname) ?? ""
+      facility = downcase(to_string(.facility) ?? "")
+      severity_raw = downcase(to_string(.severity) ?? "info")
+      severity = if severity_raw == "emerg" || severity_raw == "emergency" || severity_raw == "alert" || severity_raw == "crit" || severity_raw == "critical" || severity_raw == "err" || severity_raw == "error" { "error" } else if severity_raw == "warning" || severity_raw == "warn" { "warning" } else if severity_raw == "debug" { "debug" } else { "info" }
+      event_time = parse_timestamp(to_string(.timestamp) ?? "", format: "%+") ?? now()
+      version = to_int(.version) ?? 0
+      original_format = if version == 1 { "rfc5424" } else { "rfc3164" }
+      message_id = to_string(.msgid) ?? ""
+      syslog_product = if syslog_application != "" { syslog_application } else { "syslog" }
+      ingestion_path = if ingestion_protocol == "syslog_tcp" { "tcp/5514" } else { "udp/5514" }
+
+      . = {
+        "event_time": format_timestamp!(event_time, format: "%Y-%m-%d %H:%M:%S%.3f"),
+        "event_id": 0,
+        "event_type": "syslog_message",
+        "channel": "syslog",
+        "provider_name": syslog_application,
+        "record_id": 0,
+        "computer": host_name,
+        "user": "",
+        "process_guid": "",
+        "process_id": to_int(.procid) ?? 0,
+        "image": "",
+        "image_loaded": "",
+        "command_line": "",
+        "parent_image": "",
+        "parent_command_line": "",
+        "powershell_script": "",
+        "source_ip": "",
+        "source_port": 0,
+        "destination_ip": "",
+        "destination_port": 0,
+        "destination_hostname": "",
+        "query_name": "",
+        "query_status": "",
+        "query_results": "",
+        "target_filename": "",
+        "target_object": "",
+        "registry_details": "",
+        "protocol": "",
+        "initiated": 0,
+        "hashes": "",
+        "rule_name": "",
+        "message": message,
+        "validation_id": "",
+        "raw_json": encode_json(original),
+        "host_name": host_name,
+        "platform": "network",
+        "source_type": "generic_syslog",
+        "event_category": "log",
+        "event_action": "syslog_message",
+        "event_code": message_id,
+        "source_event_id": message_id,
+        "user_name": "",
+        "user_id": "",
+        "process_name": syslog_application,
+        "process_path": "",
+        "parent_process_name": "",
+        "parent_process_id": 0,
+        "service_name": syslog_application,
+        "outcome": "unknown",
+        "severity": severity,
+        "device_name": host_name,
+        "vendor": "generic",
+        "product": syslog_product,
+        "event_kind": "event",
+        "ingestion_protocol": ingestion_protocol,
+        "ingestion_path": ingestion_path,
+        "source_address": source_address,
+        "original_format": original_format,
+        "network_direction": "",
+        "rule_id": "",
+        "signature": "",
+        "signature_id": "",
+        "url": "",
+        "domain": "",
+        "syslog_facility": facility,
+        "syslog_application": syslog_application
       }
 
   rejected_events:
@@ -465,6 +763,8 @@ transforms:
     inputs:
       - normalize_sysmon.dropped
       - normalize_linux.dropped
+      - normalize_security.dropped
+      - normalize_syslog.dropped
       - ingest_routes._unmatched
     source: |-
       .fusion_error = "normalization_or_path_rejected"
@@ -475,6 +775,8 @@ sinks:
     inputs:
       - normalize_sysmon
       - normalize_linux
+      - normalize_security
+      - normalize_syslog
     endpoint: http://clickhouse:8123
     database: fusion
     table: sysmon_events
@@ -773,3 +1075,228 @@ tests:
         conditions:
           - type: vrl
             source: '.host_name == "ubuntu-lab" && .event_category == "service" && .event_action == "service_start" && .service_name == "fusion-lab.service" && .outcome == "success"'
+
+  - name: normalize_suricata_alert
+    inputs:
+      - insert_at: normalize_security
+        type: log
+        log_fields:
+          vendor: OISF
+          product: Suricata
+          source_type: suricata_eve
+          device_name: sensor-01
+          fusion_transport_source: 192.0.2.10
+          event:
+            timestamp: "2026-09-03T12:00:00.123Z"
+            flow_id: 1001
+            event_type: alert
+            src_ip: 192.0.2.20
+            src_port: 50000
+            dest_ip: 198.51.100.40
+            dest_port: 443
+            proto: TCP
+            alert:
+              action: allowed
+              signature_id: 2100498
+              signature: FUSION TEST Suricata alert
+              severity: 2
+    outputs:
+      - extract_from: normalize_security
+        conditions:
+          - type: vrl
+            source: '.vendor == "OISF" && .product == "Suricata" && .event_kind == "alert" && .event_action == "network_alert" && .signature_id == "2100498" && .severity == "medium" && .source_ip == "192.0.2.20" && .source_address == "192.0.2.10" && contains(to_string(.raw_json) ?? "", "FUSION TEST")'
+
+  - name: normalize_suricata_dns
+    inputs:
+      - insert_at: normalize_security
+        type: log
+        log_fields:
+          vendor: OISF
+          product: Suricata
+          source_type: suricata_eve
+          event:
+            timestamp: "2026-09-03T12:01:00.123Z"
+            event_type: dns
+            src_ip: 192.0.2.20
+            dest_ip: 198.51.100.53
+            dest_port: 53
+            proto: UDP
+            dns:
+              type: query
+              rrname: fusion-test.example
+              rrtype: A
+    outputs:
+      - extract_from: normalize_security
+        conditions:
+          - type: vrl
+            source: '.event_action == "dns_query" && .event_category == "dns" && .domain == "fusion-test.example" && .query_name == .domain && .destination_port == 53'
+
+  - name: normalize_suricata_v3_dns_array
+    inputs:
+      - insert_at: normalize_security
+        type: log
+        log_fields:
+          vendor: OISF
+          product: Suricata
+          source_type: suricata_eve
+          device_name: suricata-v8-sensor
+          event:
+            timestamp: "2026-09-03T14:32:10.362505+0000"
+            event_type: dns
+            src_ip: 192.0.2.53
+            src_port: 53
+            dest_ip: 192.0.2.20
+            dest_port: 44013
+            dns:
+              type: response
+              version: 3
+              rcode: NOERROR
+              queries:
+                - rrname: example.com
+                  rrtype: A
+              answers:
+                - rrname: example.com
+                  rrtype: A
+                  rdata: 198.51.100.20
+    outputs:
+      - extract_from: normalize_security
+        conditions:
+          - type: vrl
+            source: '.event_action == "dns_query" && .domain == "example.com" && .query_name == "example.com" && .query_status == "NOERROR" && contains(to_string(.query_results) ?? "", "198.51.100.20")'
+
+  - name: normalize_suricata_http
+    inputs:
+      - insert_at: normalize_security
+        type: log
+        log_fields:
+          product: Suricata
+          source_type: suricata_eve
+          event:
+            event_type: http
+            http:
+              hostname: web.fusion-test.example
+              url: /health
+    outputs:
+      - extract_from: normalize_security
+        conditions:
+          - type: vrl
+            source: '.event_action == "http_request" && .event_category == "web" && .domain == "web.fusion-test.example" && .url == "http://web.fusion-test.example/health"'
+
+  - name: normalize_suricata_tls
+    inputs:
+      - insert_at: normalize_security
+        type: log
+        log_fields:
+          product: Suricata
+          source_type: suricata_eve
+          event:
+            event_type: tls
+            tls:
+              sni: tls.fusion-test.example
+    outputs:
+      - extract_from: normalize_security
+        conditions:
+          - type: vrl
+            source: '.event_action == "tls_session" && .event_category == "network" && .domain == "tls.fusion-test.example"'
+
+  - name: normalize_suricata_flow
+    inputs:
+      - insert_at: normalize_security
+        type: log
+        log_fields:
+          product: Suricata
+          source_type: suricata_eve
+          event:
+            event_type: flow
+            flow_id: 1005
+            src_ip: 192.0.2.20
+            dest_ip: 198.51.100.45
+            proto: TCP
+            flow:
+              state: closed
+              alerted: false
+    outputs:
+      - extract_from: normalize_security
+        conditions:
+          - type: vrl
+            source: '.event_action == "network_flow" && .source_event_id == "1005" && .protocol == "tcp" && contains(to_string(.raw_json) ?? "", "alerted")'
+
+  - name: normalize_generic_security_json
+    inputs:
+      - insert_at: normalize_security
+        type: log
+        log_fields:
+          vendor: ExampleCo
+          product: ExampleIDS
+          source_type: example_json
+          event:
+            timestamp: "2026-09-03T12:08:00.000Z"
+            event_action: appliance_alert
+            event_category: intrusion_detection
+            source_ip: 192.0.2.50
+            destination_ip: 198.51.100.50
+            signature: Example signature
+    outputs:
+      - extract_from: normalize_security
+        conditions:
+          - type: vrl
+            source: '.vendor == "ExampleCo" && .product == "ExampleIDS" && .source_type == "example_json" && .event_action == "appliance_alert" && .source_ip == "192.0.2.50" && contains(to_string(.raw_json) ?? "", "Example signature")'
+
+  - name: normalize_rfc3164_syslog
+    inputs:
+      - insert_at: normalize_syslog
+        type: log
+        log_fields:
+          timestamp: "2026-09-03T12:05:00.000Z"
+          hostname: edge-gw
+          appname: sshd
+          procid: 1234
+          facility: auth
+          severity: crit
+          source_ip: 192.0.2.60
+          fusion_ingestion_protocol: syslog_tcp
+          message: FUSION-RFC3164 successful lab login
+    outputs:
+      - extract_from: normalize_syslog
+        conditions:
+          - type: vrl
+            source: '.original_format == "rfc3164" && .ingestion_protocol == "syslog_tcp" && .source_address == "192.0.2.60" && .source_ip == "" && .syslog_application == "sshd" && .severity == "error" && contains(to_string(.raw_json) ?? "", "FUSION-RFC3164")'
+
+  - name: normalize_rfc5424_syslog
+    inputs:
+      - insert_at: normalize_syslog
+        type: log
+        log_fields:
+          timestamp: "2026-09-03T12:06:00.000Z"
+          hostname: firewall01
+          appname: ids
+          msgid: ID47
+          version: 1
+          facility: local4
+          severity: notice
+          source_ip: 192.0.2.61
+          fusion_ingestion_protocol: syslog_udp
+          message: FUSION-RFC5424 permitted lab connection
+    outputs:
+      - extract_from: normalize_syslog
+        conditions:
+          - type: vrl
+            source: '.original_format == "rfc5424" && .ingestion_protocol == "syslog_udp" && .event_code == "ID47" && .syslog_facility == "local4" && .severity == "info"'
+
+  - name: retain_unknown_valid_syslog
+    inputs:
+      - insert_at: normalize_syslog
+        type: log
+        log_fields:
+          timestamp: "2026-09-03T12:07:00.000Z"
+          hostname: mystery-device
+          appname: mystery-app
+          version: 1
+          source_ip: 192.0.2.62
+          fusion_ingestion_protocol: syslog_udp
+          message: opaque vendor payload must be retained
+    outputs:
+      - extract_from: normalize_syslog
+        conditions:
+          - type: vrl
+            source: '.source_type == "generic_syslog" && .host_name == "mystery-device" && .product == "mystery-app" && .message == "opaque vendor payload must be retained" && contains(to_string(.raw_json) ?? "", "mystery-app")'

@@ -1,0 +1,26 @@
+{
+  "vendor": "OISF",
+  "product": "Suricata",
+  "source_type": "suricata_eve",
+  "platform": "network",
+  "device_name": "fusion-suricata-sensor",
+  "event": {
+    "timestamp": "2026-09-03T12:04:00.123456Z",
+    "flow_id": 1234567890123460,
+    "event_type": "flow",
+    "src_ip": "192.0.2.20",
+    "src_port": 51518,
+    "dest_ip": "198.51.100.45",
+    "dest_port": 22,
+    "proto": "TCP",
+    "flow": {
+      "pkts_toserver": 7,
+      "pkts_toclient": 6,
+      "bytes_toserver": 819,
+      "bytes_toclient": 2031,
+      "state": "closed",
+      "reason": "shutdown",
+      "alerted": false
+    }
+  }
+}

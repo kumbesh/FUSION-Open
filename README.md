@@ -1,21 +1,21 @@
 # Fusion
 
-Fusion is a small, open-source security analytics lab for Windows and Linux telemetry. Fusion v0.3 adds a native Linux Vector agent for auditd and journald while retaining real Windows Sysmon collection and the synthetic JSON workflow from v0.1. Every input uses the same collector, normalization layer, ClickHouse table, and Grafana dashboard.
+Fusion is a small, open-source security analytics lab for endpoint and network-security telemetry. The v0.4 development branch extends the proven v0.3 Windows Sysmon and Linux auditd/journald pipeline with generic security-tool JSON, RFC 3164/5424 syslog, and a first Suricata EVE integration. Every input still uses the same Vector normalization layer and backward-compatible ClickHouse table.
 
 ```text
-Windows Sysmon -> Windows Vector agent --HTTP--> Fusion Vector :8686
-Linux auditd ----> Linux Vector agent -----HTTP----/  |
-Linux journald --/                                      | VRL normalize
-Synthetic JSON --------------------------------------/  v
-                                               ClickHouse -> Grafana :3000
+Windows Sysmon -> Windows Vector ----HTTP /sysmon----\
+Linux auditd/journald -> Linux Vector HTTP /linux------\
+Synthetic or vendor JSON ------------HTTP /security----> Fusion Vector -> ClickHouse -> Grafana
+Suricata eve.json -> local Vector ----HTTP /security----/
+RFC 3164/5424 ------------------------TCP/UDP 5514-----/
 ```
 
 ## What is included
 
-- Vector 0.58.0 HTTP receiver, native Windows and Linux agents, and shared VRL normalization
+- Vector 0.58.0 HTTP and TCP/UDP syslog receivers, native endpoint agents, and shared VRL normalization
 - ClickHouse 26.8.1.2041 with a partitioned, indexed event table
 - Grafana 13.2.1 with ClickHouse data source 4.21.2
-- A provisioned `Fusion Security Overview` dashboard
+- Provisioned `Fusion Security Overview` and `Fusion Security Sources` dashboards
 - Native Sysmon, Winlogbeat/ECS, flat JSON, Linux auditd, and native journald field support
 - Sysmon Event IDs 1, 3, 7, 11, 13, and 22 from the Windows agent
 - Sample process creation, PowerShell, network connection, and DNS query events
@@ -26,7 +26,7 @@ All service configuration, schema, dashboards, samples, and scripts live in this
 
 ## Quick start
 
-Requirements: Docker Desktop or Docker Engine with Docker Compose v2, at least 4 GB of available RAM, and ports `3000`, `8686`, and `8687` free on localhost.
+Requirements: Docker Desktop or Docker Engine with Docker Compose v2, at least 4 GB of available RAM, and ports `3000`, `8686`, `8687`, and TCP/UDP `5514` free on localhost.
 
 Windows PowerShell:
 
@@ -91,9 +91,9 @@ The original input is preserved in `raw_json`. For the Windows agent this includ
 
 ### Common event model
 
-The existing `fusion.sysmon_events` table remains in place for backward compatibility. Fusion v0.3 adds common columns including `host_name`, `platform`, `source_type`, `event_category`, `event_action`, `event_code`, `source_event_id`, normalized user and process fields, `service_name`, `outcome`, and `severity`. Existing Windows rows receive compatible defaults from their original columns; all original v0.1/v0.2 Sysmon columns and dashboard queries remain available.
+The existing `fusion.sysmon_events` table remains in place for backward compatibility. In addition to the v0.3 common endpoint fields, v0.4 adds `device_name`, `vendor`, `product`, `event_kind`, `ingestion_protocol`, `ingestion_path`, `source_address`, `original_format`, `network_direction`, `rule_id`, `signature`, `signature_id`, `url`, `domain`, `syslog_facility`, and `syslog_application`. Transport peer metadata is deliberately separate from event-level `source_ip` and `destination_ip`.
 
-`scripts/deploy.ps1` and `scripts/deploy.sh` apply the idempotent migration in `clickhouse/migrations/003_common_security_events_v03.sql` before recreating the collector and dashboard containers. The validation suite also upgrades an isolated v0.2-shaped table and checks that its Windows row, raw JSON, host, and process data survive.
+`scripts/deploy.ps1` and `scripts/deploy.sh` apply every idempotent migration, including `clickhouse/migrations/004_security_tool_ingestion_v04.sql`, before recreating the collector and dashboard containers. The validator upgrades isolated v0.2 and v0.3 table shapes and proves that their Windows/Linux rows and raw JSON survive. Existing named volumes are never reset during deployment.
 
 ## Connect a Windows Endpoint
 
@@ -151,7 +151,7 @@ New-NetFirewallRule `
   -Profile Private
 ```
 
-Fusion v0.3 ingestion on TCP 8686 has **no TLS and no authentication**. Never expose it directly to the public Internet or an untrusted network. Anyone who can reach it can submit events, and event contents are visible in transit.
+Fusion HTTP ingestion on TCP 8686 has **no TLS and no authentication**. Never expose it directly to the public Internet or an untrusted network. Anyone who can reach it can submit events, and event contents are visible in transit.
 
 ### Install the Windows Vector agent
 
@@ -258,6 +258,114 @@ Open Grafana, choose `linux` in the **Platform** filter, and inspect Linux proce
 
 Detailed audit prerequisites, LAB/TEST examples, agent paths, security controls, and troubleshooting are in [agents/linux/README.md](agents/linux/README.md).
 
+## Connect a Security Tool
+
+Fusion v0.4 accepts a generic JSON envelope at `POST /security`. Put source identity outside the vendor event so the transport metadata remains stable while the complete original object stays available in `raw_json`:
+
+Supported connection patterns are:
+
+1. HTTP JSON to `/security`.
+2. RFC 3164/5424 syslog over TCP.
+3. RFC 3164/5424 syslog over UDP.
+4. File collection through a local Vector shipper, as demonstrated by Suricata EVE.
+5. Future REST API connectors that checkpoint and forward the same generic envelope; this is design-only in v0.4.
+
+```json
+{
+  "vendor": "ExampleCo",
+  "product": "Example IDS",
+  "source_type": "example_json",
+  "platform": "network",
+  "device_name": "sensor-01",
+  "event": {
+    "timestamp": "2026-09-03T12:00:00.000Z",
+    "event_action": "network_alert",
+    "source_ip": "192.0.2.20",
+    "destination_ip": "198.51.100.40",
+    "signature": "Example rule"
+  }
+}
+```
+
+```sh
+curl -i -H 'Content-Type: application/json' \
+  --data-binary @samples/security-tools/suricata-alert.json \
+  http://localhost:8686/security
+```
+
+The JSON event is limited to 1 MiB by the v0.4 normalizer; oversized events are rejected from storage and logged by the collector. The ClickHouse sink uses a bounded 256 MiB disk buffer with backpressure. If ClickHouse is unavailable, Vector retries for a bounded request window and then retains events in the disk buffer; when the buffer fills, inputs block instead of consuming unbounded memory.
+
+Generic RFC 3164 and RFC 5424 syslog is accepted over TCP and UDP. Defaults are secure and local-only:
+
+```dotenv
+FUSION_SYSLOG_BIND_ADDRESS=127.0.0.1
+FUSION_SYSLOG_TCP_PORT=5514
+FUSION_SYSLOG_UDP_PORT=5514
+```
+
+To receive from an isolated VM or appliance, set `FUSION_SYSLOG_BIND_ADDRESS` to the specific Fusion host interface reachable from that device—never `0.0.0.0`—then redeploy. The Docker Desktop, Hyper-V, and VMware address-selection guidance in [Make the Fusion receiver reachable](#make-the-fusion-receiver-reachable) applies to syslog too. Permit TCP and/or UDP 5514 only from the individual test device or lab subnet. On a Windows Fusion host, for example:
+
+```powershell
+New-NetFirewallRule -DisplayName 'Fusion syslog TCP - isolated lab' `
+  -Direction Inbound -Action Allow -Protocol TCP -LocalPort 5514 `
+  -LocalAddress <FUSION_HOST_LAB_IP> -RemoteAddress <TEST_DEVICE_IP_OR_LAB_CIDR> -Profile Private
+New-NetFirewallRule -DisplayName 'Fusion syslog UDP - isolated lab' `
+  -Direction Inbound -Action Allow -Protocol UDP -LocalPort 5514 `
+  -LocalAddress <FUSION_HOST_LAB_IP> -RemoteAddress <TEST_DEVICE_IP_OR_LAB_CIDR> -Profile Private
+```
+
+Syslog messages are capped at 64 KiB and TCP is capped at 100 simultaneous connections. Unknown but syntactically valid syslog is retained as `generic_syslog`; parsed application, facility, severity, hostname, message ID, peer address, and the complete parsed object are preserved. TCP/UDP syslog is plaintext and unauthenticated. HTTP 8686 also has no TLS or authentication. Never expose any ingestion port directly to the public Internet or an untrusted network. A future hardened transport should add HTTPS with tokens or mTLS and syslog over TLS; those controls are not present in v0.4.
+
+When adding a future file or HTTP source, extend `normalize_security` and the common event model instead of creating a vendor table or parallel collector. The planned API-polling contract—cursor state, rate limits, retry/backoff, deduplication, and secret handling—is documented in [docs/api-connectors.md](docs/api-connectors.md); v0.4 deliberately does not implement an API connector.
+
+## Suricata Integration
+
+Fusion does **not** install, start, reconfigure, or upgrade Suricata. A Suricata sensor must already be producing newline-delimited EVE JSON at `/var/log/suricata/eve.json` (or another explicit absolute path). The initial normalizer supports EVE `alert`, `dns`, `http`, `tls`, and `flow` records.
+
+On the sensor, verify the prerequisite without changing it:
+
+```sh
+sudo systemctl is-active suricata.service
+sudo test -r /var/log/suricata/eve.json
+sudo tail -n 5 /var/log/suricata/eve.json
+sudo grep -m 1 -E '"event_type":"(alert|dns|http|tls|flow)"' /var/log/suricata/eve.json
+```
+
+First make HTTP 8686 reachable only from the Suricata sensor using `FUSION_BIND_ADDRESS` and the restricted firewall guidance above. From the sensor, verify the route and port, then install the repository-managed Vector shipper:
+
+```sh
+ip route get <FUSION_HOST_LAB_IP>
+nc -vz <FUSION_HOST_LAB_IP> 8686
+cd integrations/suricata
+sudo sh ./install.sh http://<FUSION_HOST_LAB_IP>:8686/security /var/log/suricata/eve.json <SENSOR_NAME>
+sh ./status.sh
+```
+
+Lifecycle commands are:
+
+```sh
+sudo sh ./configure.sh http://<FUSION_HOST_LAB_IP>:8686/security /var/log/suricata/eve.json <SENSOR_NAME>
+sudo sh ./start.sh
+sudo sh ./stop.sh
+sh ./status.sh
+sudo sh ./uninstall.sh
+```
+
+The shipper reads only new EVE lines on first use, checkpoints file offsets, follows normal Suricata log rotation, wraps each EVE object with Fusion source metadata, and sends it to `/security`. Use a literal Fusion host IP in the collector URL. The generated configuration discards EVE records whose destination IP and port are the collector itself; this prevents a sensor monitoring its own outbound Vector traffic from creating a recursive ingestion loop. Its 1 MiB line/request bounds and 256 MiB disk buffer prevent unbounded growth. Do not manually truncate `eve.json` or delete the checkpoint directory while buffered telemetry matters.
+
+This remains a single-node lab: there is no high availability, load balancing, or broker. UDP can lose messages under network or receiver pressure, and once a Vector disk buffer is full its input blocks. Monitor buffer use and ClickHouse health, size retention for the lab, and prefer TCP/HTTP when delivery matters.
+
+Verify stored real telemetry on the Fusion host:
+
+```sh
+set -a; . ./.env; set +a
+docker compose exec clickhouse clickhouse-client \
+  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" \
+  --query "SELECT event_time, device_name, event_action, signature, domain, url, source_ip, destination_ip FROM fusion.sysmon_events WHERE product = 'Suricata' ORDER BY event_time DESC LIMIT 25"
+```
+
+Open **Dashboards → Fusion → Fusion Security Sources** and select `Suricata` in the Product filter. The files under `samples/security-tools/` prove configuration and normalization only; they are synthetic and do not satisfy real Suricata acceptance. Real acceptance was completed on an x86_64 Ubuntu 26.04 VMware sensor running Suricata 8.0.3 on 2026-09-03 UTC, including alert, DNS, HTTP, TLS, flow, raw-event, ClickHouse, and Grafana verification. See [docs/suricata-acceptance.md](docs/suricata-acceptance.md) for the evidence and [integrations/suricata/README.md](integrations/suricata/README.md) for installation and troubleshooting.
+
 ## Dashboard
 
 The provisioned multi-platform dashboard contains:
@@ -272,6 +380,9 @@ The provisioned multi-platform dashboard contains:
 - Platform and host filters
 - Event volume by platform and source type
 - Linux process execution, authentication success/failure, failed-login, and sudo views
+- Vendor, product, source type, and ingestion-protocol volumes
+- Suricata alerts, signatures, source/destination IPs, DNS, HTTP, TLS, and flow activity
+- Generic TCP/UDP syslog volume and recent security-tool events
 
 PowerShell execution is derived from Sysmon Event ID 1 when `Image` contains `powershell.exe` or `pwsh.exe`.
 
@@ -318,6 +429,7 @@ The table is partitioned monthly, ordered for time-based security investigation,
 ```text
 agents/windows/                          Native Windows Vector agent and lifecycle scripts
 agents/linux/                            Native Linux Vector agent, systemd unit, and lifecycle scripts
+integrations/suricata/                   EVE JSON shipper, hardened service, and lifecycle scripts
 clickhouse/init/                         ClickHouse schema for fresh installations
 clickhouse/migrations/                   Idempotent upgrades for existing volumes
 grafana/dashboards/                      Versioned dashboard JSON
@@ -325,6 +437,8 @@ grafana/provisioning/                    Dashboard and data-source provisioning
 samples/sysmon/                          v0.1 synthetic test events
 samples/windows-agent/                   Native Windows-agent-shaped test events
 samples/linux-agent/                     Linux auditd/journald validation fixtures
+samples/security-tools/                  Suricata EVE and RFC 3164/5424 validation fixtures
+docs/                                    Design notes for future integrations
 scripts/                                 Deploy, stop, reset, and validate helpers
 vector/vector.yaml                       Receiver, normalization, buffering, tests
 docker-compose.yml                       Pinned service topology
@@ -332,7 +446,7 @@ docker-compose.yml                       Pinned service topology
 
 ## Security boundaries
 
-Fusion is a local lab, not an internet-facing deployment. Grafana, ingestion, and the Vector health API bind to `127.0.0.1` by default; ClickHouse is reachable only on the private Compose network. Only the ingestion address can be explicitly changed with `FUSION_BIND_ADDRESS` for isolated Windows or Linux lab VMs. The `/sysmon` and `/linux` HTTP receiver paths do not use TLS or authentication. Never expose TCP 8686 directly to the public Internet, and restrict any lab binding with a host firewall rule scoped to the test VMs or isolated subnet.
+Fusion is a local lab, not an internet-facing deployment. Grafana, HTTP ingestion, syslog, and the Vector health API bind to `127.0.0.1` by default; ClickHouse is reachable only on the private Compose network. HTTP can be explicitly bound with `FUSION_BIND_ADDRESS` and syslog with the separate `FUSION_SYSLOG_BIND_ADDRESS`. The `/sysmon`, `/linux`, and `/security` paths have no TLS or authentication; TCP/UDP syslog is also plaintext and unauthenticated. Never expose 8686 or 5514 directly to the public Internet, never use `0.0.0.0` as a shortcut, and restrict every lab binding with source-scoped firewall rules.
 
 Do not send real credentials or sensitive production telemetry to the included sample environment. See [SECURITY.md](SECURITY.md) for vulnerability reporting.
 
@@ -344,6 +458,8 @@ Validate configuration after changes:
 .\scripts\validate.ps1
 ```
 
-The validator checks both supported bind modes, compiles the collector configuration, runs all VRL tests, verifies the migrated ClickHouse schema and container health, sends tagged v0.1 and Windows-agent-shaped samples, asserts Event IDs 1, 3, and 22, runs the dashboard telemetry queries, checks the Grafana data source, and confirms dashboard provisioning. Validate the Windows-only source configuration with `agents/windows/test-config.ps1` and the Vector 0.58.0 Windows executable.
+The validator checks default and explicit lab bindings for HTTP and TCP/UDP syslog, compiles the collector and Suricata shipper configurations, runs all VRL tests, proves v0.2/v0.3 upgrade compatibility, checks the live schema and container health, sends tagged Windows, Linux, Suricata, RFC 3164, RFC 5424, and unknown-valid-syslog fixtures, executes both dashboards' telemetry queries, and confirms Grafana provisioning. Validate the Windows-only source configuration with `agents/windows/test-config.ps1` and the Vector 0.58.0 Windows executable.
+
+The fixture suite is not a substitute for real-sensor acceptance. The completed v0.4 Suricata acceptance is recorded in [docs/suricata-acceptance.md](docs/suricata-acceptance.md). A release still requires the complete local validator and repository CI to pass; do not create a release tag based on fixtures alone.
 
 Contributions are welcome under the MIT license.

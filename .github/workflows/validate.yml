@@ -26,6 +26,9 @@ jobs:
           docker compose run --rm --no-deps vector validate --no-environment /etc/vector/vector.yaml
           docker compose run --rm --no-deps vector test /etc/vector/vector.yaml
 
+      - name: Ensure TCP/UDP syslog test client is available
+        run: command -v nc >/dev/null || (sudo apt-get update && sudo apt-get install -y netcat-openbsd)
+
       - name: Deploy and validate the complete lab
         run: ./scripts/deploy.sh
 
@@ -73,6 +76,8 @@ jobs:
         run: |
           for script in agents/linux/*.sh; do sh -n "$script"; done
           shellcheck agents/linux/*.sh
+          for script in integrations/suricata/*.sh; do sh -n "$script"; done
+          shellcheck integrations/suricata/*.sh
 
       - name: Download and verify Vector 0.58.0 for Linux
         run: |
@@ -91,6 +96,11 @@ jobs:
           vector=$(find "$RUNNER_TEMP/vector-linux" -type f -path '*/bin/vector' -print -quit)
           agents/linux/test-config.sh "$vector"
 
+      - name: Validate Suricata EVE integration configuration
+        run: |
+          vector=$(find "$RUNNER_TEMP/vector-linux" -type f -path '*/bin/vector' -print -quit)
+          sh integrations/suricata/test-config.sh "$vector"
+
       - name: Validate hardened systemd service
         run: |
           unit="$RUNNER_TEMP/fusion-vector-agent.service"
@@ -99,3 +109,10 @@ jobs:
             -e 's|^ExecStart=.*|ExecStart=/bin/true|' \
             agents/linux/fusion-vector-agent.service > "$unit"
           systemd-analyze verify "$unit"
+
+          suricata_unit="$RUNNER_TEMP/fusion-suricata-vector.service"
+          sed \
+            -e 's|^ExecStartPre=.*|ExecStartPre=/bin/true|' \
+            -e 's|^ExecStart=.*|ExecStart=/bin/true|' \
+            integrations/suricata/fusion-suricata-vector.service > "$suricata_unit"
+          systemd-analyze verify "$suricata_unit"

@@ -1,0 +1,186 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "description": "Events accepted through /security or either generic syslog transport.",
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "blue", "value": 1 }] } }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT count() AS SecurityToolEvents FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND (ingestion_path = '/security' OR startsWith(ingestion_protocol, 'syslog')) AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') AND match(vendor, '${vendor:regex}') AND match(product, '${product:regex}') AND match(source_type, '${source:regex}') AND match(ingestion_protocol, '${ingestion:regex}')", "refId": "A" }],
+      "title": "Security tool events",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "description": "Suricata EVE alert records in the selected time range.",
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }, { "color": "red", "value": 10 }] } }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT count() AS SuricataAlerts FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND product = 'Suricata' AND event_kind = 'alert' AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') AND match(vendor, '${vendor:regex}') AND match(product, '${product:regex}') AND match(source_type, '${source:regex}') AND match(ingestion_protocol, '${ingestion:regex}')", "refId": "A" }],
+      "title": "Suricata alerts",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "description": "RFC 3164/5424 events received over TCP or UDP.",
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "purple", "value": 1 }] } }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT count() AS SyslogEvents FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND startsWith(ingestion_protocol, 'syslog') AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') AND match(vendor, '${vendor:regex}') AND match(product, '${product:regex}') AND match(source_type, '${source:regex}') AND match(ingestion_protocol, '${ingestion:regex}')", "refId": "A" }],
+      "title": "Syslog events",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "description": "Network, DNS, HTTP, TLS, and flow activity from connected security tools.",
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "blue", "value": 1 }] } }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT count() AS NetworkEvents FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND (event_category IN ('network','dns','web','intrusion_detection') OR source_ip != '' OR destination_ip != '') AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') AND match(vendor, '${vendor:regex}') AND match(product, '${product:regex}') AND match(source_type, '${source:regex}') AND match(ingestion_protocol, '${ingestion:regex}')", "refId": "A" }],
+      "title": "Network activity",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 1, "showPoints": "never", "stacking": { "group": "A", "mode": "normal" } } }, "overrides": [] },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 5 },
+      "id": 5,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [{ "editorType": "sql", "format": 0, "queryType": "sql", "rawSql": "SELECT $__timeInterval(event_time) AS time, concat(vendor, ' / ', product) AS source, count() AS events FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND (ingestion_path = '/security' OR startsWith(ingestion_protocol, 'syslog')) AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') AND match(vendor, '${vendor:regex}') AND match(product, '${product:regex}') AND match(source_type, '${source:regex}') AND match(ingestion_protocol, '${ingestion:regex}') GROUP BY time, source ORDER BY time", "refId": "A" }],
+      "title": "Security source activity over time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 14 },
+      "id": 6,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT vendor, count() AS events FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') AND match(vendor, '${vendor:regex}') AND match(product, '${product:regex}') AND match(source_type, '${source:regex}') AND match(ingestion_protocol, '${ingestion:regex}') GROUP BY vendor ORDER BY events DESC LIMIT 10", "refId": "A" }],
+      "title": "Events by vendor",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 14 },
+      "id": 7,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT product, count() AS events FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') AND match(vendor, '${vendor:regex}') AND match(product, '${product:regex}') AND match(source_type, '${source:regex}') AND match(ingestion_protocol, '${ingestion:regex}') GROUP BY product ORDER BY events DESC LIMIT 10", "refId": "A" }],
+      "title": "Events by product",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 14 },
+      "id": 8,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT source_type, count() AS events FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') AND match(vendor, '${vendor:regex}') AND match(product, '${product:regex}') AND match(source_type, '${source:regex}') AND match(ingestion_protocol, '${ingestion:regex}') GROUP BY source_type ORDER BY events DESC LIMIT 10", "refId": "A" }],
+      "title": "Events by source type",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 14 },
+      "id": 9,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT ingestion_protocol, count() AS events FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') AND match(vendor, '${vendor:regex}') AND match(product, '${product:regex}') AND match(source_type, '${source:regex}') AND match(ingestion_protocol, '${ingestion:regex}') GROUP BY ingestion_protocol ORDER BY events DESC", "refId": "A" }],
+      "title": "Events by ingestion protocol",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-RdYlGr" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 22 },
+      "id": 10,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT signature, count() AS alerts FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND signature != '' AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') AND match(vendor, '${vendor:regex}') AND match(product, '${product:regex}') AND match(source_type, '${source:regex}') AND match(ingestion_protocol, '${ingestion:regex}') GROUP BY signature ORDER BY alerts DESC LIMIT 10", "refId": "A" }],
+      "title": "Top Suricata signatures",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 22 },
+      "id": 11,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT source_ip, count() AS events FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND source_ip != '' AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') AND match(vendor, '${vendor:regex}') AND match(product, '${product:regex}') AND match(source_type, '${source:regex}') AND match(ingestion_protocol, '${ingestion:regex}') GROUP BY source_ip ORDER BY events DESC LIMIT 10", "refId": "A" }],
+      "title": "Top source IPs",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 22 },
+      "id": 12,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT destination_ip, count() AS events FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND destination_ip != '' AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') AND match(vendor, '${vendor:regex}') AND match(product, '${product:regex}') AND match(source_type, '${source:regex}') AND match(ingestion_protocol, '${ingestion:regex}') GROUP BY destination_ip ORDER BY events DESC LIMIT 10", "refId": "A" }],
+      "title": "Top destination IPs",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 30 },
+      "id": 13,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT domain, count() AS queries FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_category = 'dns' AND domain != '' AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') AND match(vendor, '${vendor:regex}') AND match(product, '${product:regex}') AND match(source_type, '${source:regex}') AND match(ingestion_protocol, '${ingestion:regex}') GROUP BY domain ORDER BY queries DESC LIMIT 20", "refId": "A" }],
+      "title": "DNS activity",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "filterable": true } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 30 },
+      "id": 14,
+      "options": { "cellHeight": "sm", "footer": { "show": false }, "showHeader": true },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT event_time AS Time, device_name AS Device, source_ip AS SourceIP, destination_ip AS DestinationIP, url AS URL FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_category = 'web' AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') AND match(vendor, '${vendor:regex}') AND match(product, '${product:regex}') AND match(source_type, '${source:regex}') AND match(ingestion_protocol, '${ingestion:regex}') ORDER BY event_time DESC LIMIT 200", "refId": "A" }],
+      "title": "HTTP activity",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "filterable": true } }, "overrides": [] },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 38 },
+      "id": 15,
+      "options": { "cellHeight": "sm", "footer": { "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "Time" }] },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT event_time AS Time, device_name AS Device, severity AS Severity, signature_id AS SignatureID, signature AS Signature, source_ip AS SourceIP, source_port AS SourcePort, destination_ip AS DestinationIP, destination_port AS DestinationPort, outcome AS Outcome FROM fusion.sysmon_events WHERE $__timeFilter(event_time) AND event_kind = 'alert' AND match(host_name, '${computer:regex}') AND match(platform, '${platform:regex}') AND match(vendor, '${vendor:regex}') AND match(product, '${product:regex}') AND match(source_type, '${source:regex}') AND match(ingestion_protocol, '${ingestion:regex}') ORDER BY event_time DESC LIMIT 200", "refId": "A" }],
+      "title": "Recent security alerts",
+      "type": "table"
+    }
+  ],
+  "preload": false,
+  "refresh": "10s",
+  "schemaVersion": 41,
+  "tags": ["fusion", "security-tools", "suricata", "syslog", "clickhouse"],
+  "templating": {
+    "list": [
+      { "allValue": ".*", "current": { "text": "All", "value": "$__all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" }, "definition": "SELECT DISTINCT host_name FROM fusion.sysmon_events WHERE host_name != '' ORDER BY host_name", "includeAll": true, "label": "Host", "multi": true, "name": "computer", "options": [], "query": "SELECT DISTINCT host_name FROM fusion.sysmon_events WHERE host_name != '' ORDER BY host_name", "refresh": 2, "regex": "", "sort": 1, "type": "query" },
+      { "allValue": ".*", "current": { "text": "All", "value": "$__all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" }, "definition": "SELECT DISTINCT platform FROM fusion.sysmon_events WHERE platform != '' ORDER BY platform", "includeAll": true, "label": "Platform", "multi": true, "name": "platform", "options": [], "query": "SELECT DISTINCT platform FROM fusion.sysmon_events WHERE platform != '' ORDER BY platform", "refresh": 2, "regex": "", "sort": 1, "type": "query" },
+      { "allValue": ".*", "current": { "text": "All", "value": "$__all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" }, "definition": "SELECT DISTINCT vendor FROM fusion.sysmon_events WHERE vendor != '' ORDER BY vendor", "includeAll": true, "label": "Vendor", "multi": true, "name": "vendor", "options": [], "query": "SELECT DISTINCT vendor FROM fusion.sysmon_events WHERE vendor != '' ORDER BY vendor", "refresh": 2, "regex": "", "sort": 1, "type": "query" },
+      { "allValue": ".*", "current": { "text": "All", "value": "$__all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" }, "definition": "SELECT DISTINCT product FROM fusion.sysmon_events WHERE product != '' ORDER BY product", "includeAll": true, "label": "Product", "multi": true, "name": "product", "options": [], "query": "SELECT DISTINCT product FROM fusion.sysmon_events WHERE product != '' ORDER BY product", "refresh": 2, "regex": "", "sort": 1, "type": "query" },
+      { "allValue": ".*", "current": { "text": "All", "value": "$__all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" }, "definition": "SELECT DISTINCT source_type FROM fusion.sysmon_events WHERE source_type != '' ORDER BY source_type", "includeAll": true, "label": "Source type", "multi": true, "name": "source", "options": [], "query": "SELECT DISTINCT source_type FROM fusion.sysmon_events WHERE source_type != '' ORDER BY source_type", "refresh": 2, "regex": "", "sort": 1, "type": "query" },
+      { "allValue": ".*", "current": { "text": "All", "value": "$__all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" }, "definition": "SELECT DISTINCT ingestion_protocol FROM fusion.sysmon_events WHERE ingestion_protocol != '' ORDER BY ingestion_protocol", "includeAll": true, "label": "Ingestion protocol", "multi": true, "name": "ingestion", "options": [], "query": "SELECT DISTINCT ingestion_protocol FROM fusion.sysmon_events WHERE ingestion_protocol != '' ORDER BY ingestion_protocol", "refresh": 2, "regex": "", "sort": 1, "type": "query" }
+    ]
+  },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": { "refresh_intervals": ["5s", "10s", "30s", "1m", "5m"], "time_options": ["5m", "15m", "1h", "6h", "24h", "2d", "7d", "30d"] },
+  "timezone": "browser",
+  "title": "Fusion Security Sources",
+  "uid": "fusion-security-sources",
+  "version": 1,
+  "weekStart": ""
+}

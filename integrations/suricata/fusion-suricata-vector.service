@@ -1,0 +1,40 @@
+[Unit]
+Description=Fusion Suricata EVE Vector Integration
+Documentation=https://github.com/kumbesh/FUSION-Open
+Wants=network-online.target
+After=network-online.target suricata.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStartPre=/usr/local/lib/fusion-suricata-vector/bin/vector validate --no-environment --skip-healthchecks --config-yaml /etc/fusion-suricata-vector/vector.yaml
+ExecStart=/usr/local/lib/fusion-suricata-vector/bin/vector --config-yaml /etc/fusion-suricata-vector/vector.yaml
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+StateDirectory=fusion-suricata-vector
+LogsDirectory=fusion-suricata-vector
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH
+AmbientCapabilities=CAP_DAC_READ_SEARCH
+ReadOnlyPaths=/var/log/suricata
+ReadWritePaths=/var/lib/fusion-suricata-vector /var/log/fusion-suricata-vector
+
+[Install]
+WantedBy=multi-user.target
