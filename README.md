@@ -2,15 +2,24 @@
 
 Fusion is a small, open-source security analytics lab for endpoint and network-security telemetry. Fusion v0.5 adds a standalone post-ingestion detection engine to the proven v0.4 multi-source data plane. Every input still uses the same Vector normalization layer and backward-compatible ClickHouse event table.
 
+## What FUSION-Open does
+
 ```text
-Windows Sysmon -> Windows Vector ----HTTP /sysmon----\
-Linux auditd/journald -> Linux Vector HTTP /linux------\
-Synthetic or vendor JSON ------------HTTP /security----> Fusion Vector -> ClickHouse -> Grafana
-Suricata eve.json -> local Vector ----HTTP /security----/
-RFC 3164/5424 ------------------------TCP/UDP 5514-----/
-                                                                      |
-                                                                      +-> Detection Engine -> detections -> Grafana
+Windows Sysmon ─┐
+Linux auditd ───┼─> Vector ─> ClickHouse ─> Detection Engine ─> Grafana
+Suricata EVE ───┘                         │
+                                         └─ Sigma + MITRE ATT&CK
 ```
+
+## Screenshots
+
+### Fusion Detections
+
+![Fusion Detections](docs/images/fusion-detections.png)
+
+### Security Sources
+
+![Security Sources](docs/images/security-sources.png)
 
 ## What is included
 
