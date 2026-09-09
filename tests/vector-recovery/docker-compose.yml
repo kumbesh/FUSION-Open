@@ -1,0 +1,59 @@
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:26.8.1.2041-alpine
+    environment:
+      CLICKHOUSE_DB: fusion
+      CLICKHOUSE_USER: fusion_recovery_test
+      CLICKHOUSE_PASSWORD: fusion-recovery-test-only
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ../../clickhouse/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - recovery
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          clickhouse-client --user "$${CLICKHOUSE_USER}"
+          --password "$${CLICKHOUSE_PASSWORD}" --query "SELECT 1"
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 5s
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+
+  vector:
+    image: timberio/vector:0.58.0-alpine
+    command:
+      - --config
+      - /etc/vector/vector.yaml
+    environment:
+      CLICKHOUSE_USER: fusion_recovery_test
+      CLICKHOUSE_PASSWORD: fusion-recovery-test-only
+      VECTOR_DANGEROUSLY_ALLOW_ENV_VAR_INTERPOLATION: "true"
+      # The harness must start Vector while ClickHouse is intentionally down.
+      VECTOR_REQUIRE_HEALTHY: "false"
+    volumes:
+      - "${FUSION_RECOVERY_VECTOR_CONFIG:?set FUSION_RECOVERY_VECTOR_CONFIG}:/etc/vector/vector.yaml:ro"
+      - vector-data:/var/lib/vector
+      - "${FUSION_RECOVERY_STATE_DIR:?set FUSION_RECOVERY_STATE_DIR}/fixtures:/fixtures:ro"
+    networks:
+      - recovery
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  recovery:
+    internal: true
+
+volumes:
+  clickhouse-data:
+    labels:
+      org.fusion-open.test: vector-sink-recovery
+  vector-data:
+    labels:
+      org.fusion-open.test: vector-sink-recovery
