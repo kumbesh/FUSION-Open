@@ -26,6 +26,9 @@ jobs:
           docker compose run --rm --no-deps vector validate --no-environment /etc/vector/vector.yaml
           docker compose run --rm --no-deps vector test /etc/vector/vector.yaml
 
+      - name: Test Vector sink restart and recovery
+        run: ./scripts/test-vector-recovery.sh
+
       - name: Ensure TCP/UDP syslog test client is available
         run: command -v nc >/dev/null || (sudo apt-get update && sudo apt-get install -y netcat-openbsd)
 
@@ -82,6 +85,7 @@ jobs:
       - name: Check Linux agent shell scripts
         run: |
           for script in scripts/*.sh; do sh -n "$script"; done
+          shellcheck -x scripts/test-vector-recovery.sh
           shellcheck -x scripts/validate-detections.sh
           for script in agents/linux/*.sh; do sh -n "$script"; done
           shellcheck agents/linux/*.sh

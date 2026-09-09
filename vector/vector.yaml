@@ -786,6 +786,13 @@ sinks:
       password: "${CLICKHOUSE_PASSWORD}"
     skip_unknown_fields: false
     compression: gzip
+    # These HTTP transport fields are mapped to validation_id and retained in
+    # raw_json. Exclude only their top-level copies when serializing for the
+    # strict ClickHouse schema, including events replayed from the disk buffer.
+    encoding:
+      except_fields:
+        - X-Fusion-Validation-Id
+        - x-fusion-validation-id
     batch:
       max_events: 1000
       timeout_secs: 1
@@ -806,6 +813,58 @@ sinks:
       codec: json
 
 tests:
+  - name: normalize_sysmon_validation_header
+    inputs:
+      - insert_at: normalize_sysmon
+        type: log
+        log_fields:
+          X-Fusion-Validation-Id: recovery-sysmon-header
+          event_id: 1
+          computer: RECOVERY-WINDOWS
+          event_data:
+            Image: 'C:\Windows\System32\cmd.exe'
+    outputs:
+      - extract_from: normalize_sysmon
+        conditions:
+          - type: vrl
+            source: '.validation_id == "recovery-sysmon-header" && !exists(."X-Fusion-Validation-Id") && !exists(."x-fusion-validation-id") && contains(to_string(.raw_json) ?? "", "X-Fusion-Validation-Id")'
+
+  - name: normalize_linux_validation_header
+    inputs:
+      - insert_at: normalize_linux
+        type: log
+        log_fields:
+          x-fusion-validation-id: recovery-linux-header
+          source_type: linux_journald
+          host_name: recovery-linux
+          timestamp: "2026-09-10T00:00:00.000Z"
+          SYSLOG_IDENTIFIER: sshd
+          message: Connection closed by authenticating user test 192.0.2.10 port 50000 [preauth]
+    outputs:
+      - extract_from: normalize_linux
+        conditions:
+          - type: vrl
+            source: '.validation_id == "recovery-linux-header" && !exists(."X-Fusion-Validation-Id") && !exists(."x-fusion-validation-id") && contains(to_string(.raw_json) ?? "", "x-fusion-validation-id")'
+
+  - name: normalize_security_validation_header
+    inputs:
+      - insert_at: normalize_security
+        type: log
+        log_fields:
+          X-Fusion-Validation-Id: recovery-security-header
+          vendor: OISF
+          product: Suricata
+          source_type: suricata_eve
+          event:
+            timestamp: "2026-09-10T00:00:00.000Z"
+            event_type: flow
+            flow_id: 9000001
+    outputs:
+      - extract_from: normalize_security
+        conditions:
+          - type: vrl
+            source: '.validation_id == "recovery-security-header" && !exists(."X-Fusion-Validation-Id") && !exists(."x-fusion-validation-id") && contains(to_string(.raw_json) ?? "", "X-Fusion-Validation-Id")'
+
   - name: normalize_nested_sysmon_process_create
     inputs:
       - insert_at: normalize_sysmon

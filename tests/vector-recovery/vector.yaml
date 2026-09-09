@@ -1,0 +1,105 @@
+data_dir: /var/lib/vector
+
+api:
+  enabled: true
+  address: 127.0.0.1:8687
+
+sources:
+  recovery_http:
+    type: http_server
+    address: 127.0.0.1:8686
+    method: POST
+    path: /recovery
+    strict_path: true
+    response_code: 202
+    framing:
+      method: newline_delimited
+    decoding:
+      codec: json
+
+transforms:
+  shape_recovery_event:
+    type: remap
+    inputs:
+      - recovery_http
+    source: |-
+      original = .
+      sequence = to_int!(.sequence)
+      stale_transport_value = to_string(."X-Fusion-Validation-Id") ?? ""
+      source_event_id = "recovery-" + to_string(sequence)
+
+      . = {
+        "event_time": format_timestamp!(now(), format: "%Y-%m-%d %H:%M:%S%.3f"),
+        "event_id": 0,
+        "event_type": "vector_recovery_test",
+        "record_id": sequence,
+        "computer": "vector-recovery-test",
+        "message": "Vector sink recovery regression event",
+        "validation_id": "fusion-vector-recovery",
+        "raw_json": encode_json(original),
+        "host_name": "vector-recovery-test",
+        "platform": "test",
+        "source_type": "vector_recovery_test",
+        "event_category": "test",
+        "event_action": "recovery_replay",
+        "event_code": to_string(sequence),
+        "source_event_id": source_event_id,
+        "severity": "info",
+        "device_name": "vector-recovery-test",
+        "vendor": "Fusion",
+        "product": "Vector recovery test",
+        "event_kind": "event",
+        "ingestion_protocol": "http",
+        "ingestion_path": "/recovery",
+        "original_format": "json"
+      }
+
+      if stale_transport_value != "" {
+        ."X-Fusion-Validation-Id" = stale_transport_value
+      }
+
+sinks:
+  clickhouse:
+    type: clickhouse
+    inputs:
+      - shape_recovery_event
+    endpoint: http://clickhouse:8123
+    database: fusion
+    table: sysmon_events
+    auth:
+      strategy: basic
+      user: "${CLICKHOUSE_USER}"
+      password: "${CLICKHOUSE_PASSWORD}"
+    skip_unknown_fields: false
+    compression: gzip
+    # FUSION_RECOVERY_GUARD_BEGIN
+    encoding:
+      except_fields:
+        - X-Fusion-Validation-Id
+        - x-fusion-validation-id
+    # FUSION_RECOVERY_GUARD_END
+    batch:
+      max_events: 1000
+      timeout_secs: 1
+    buffer:
+      type: disk
+      max_size: 268435488
+      when_full: block
+    request:
+      retry_attempts: 10
+      retry_initial_backoff_secs: 1
+      retry_max_duration_secs: 30
+
+tests:
+  - name: inject_observed_stale_transport_field
+    inputs:
+      - insert_at: shape_recovery_event
+        type: log
+        log_fields:
+          sequence: 197
+          X-Fusion-Validation-Id: stale-transport-metadata
+    outputs:
+      - extract_from: shape_recovery_event
+        conditions:
+          - type: vrl
+            source: '.source_event_id == "recovery-197" && ."X-Fusion-Validation-Id" == "stale-transport-metadata" && contains(to_string(.raw_json) ?? "", "X-Fusion-Validation-Id")'

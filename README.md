@@ -305,7 +305,7 @@ curl -i -H 'Content-Type: application/json' \
   http://localhost:8686/security
 ```
 
-The JSON event is limited to 1 MiB by the v0.4 normalizer; oversized events are rejected from storage and logged by the collector. The ClickHouse sink uses a bounded 256 MiB disk buffer with backpressure. If ClickHouse is unavailable, Vector retries for a bounded request window and then retains events in the disk buffer; when the buffer fills, inputs block instead of consuming unbounded memory.
+The JSON event is limited to 1 MiB by the v0.4 normalizer; oversized events are rejected from storage and logged by the collector. The ClickHouse sink uses a bounded 256 MiB disk buffer with backpressure. Retryable failures use a finite retry policy, and unacknowledged records survive a Vector interruption in the disk buffer; when the buffer fills, inputs block instead of consuming unbounded memory. Permanent schema rejections and exhausted requests are logged and removed because Vector 0.58 has no ClickHouse dead-letter output. Fusion narrowly guards the known stale validation-header recovery case without weakening strict schema enforcement; see [Vector sink recovery](docs/vector-sink-recovery.md).
 
 Generic RFC 3164 and RFC 5424 syslog is accepted over TCP and UDP. Defaults are secure and local-only:
 
