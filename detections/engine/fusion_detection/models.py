@@ -63,9 +63,34 @@ class Checkpoint:
 
 
 @dataclass(frozen=True)
+class EvaluationScope:
+    evaluation_floor_time: datetime
+    candidate_cursor: Checkpoint | None = None
+
+
+@dataclass(frozen=True)
+class BacklogStatus:
+    newest_event_time: datetime | None
+    newest_event_uid: str
+    lag_events: int
+    lag_seconds: float
+    unevaluated_events: int = 0
+    oldest_unevaluated_event_time: datetime | None = None
+    oldest_unevaluated_age_seconds: float = 0.0
+
+
+@dataclass(frozen=True)
 class CycleStats:
     events_evaluated: int
+    new_events_processed: int
+    late_events_processed: int
     matches_found: int
     detections_inserted: int
     duplicates_skipped: int
+    evaluation_failures: int
+    processing_duration_seconds: float
+    evaluated_events_per_second: float
     checkpoint: Checkpoint
+    backlog: BacklogStatus
+    evaluation_floor_time: datetime | None = None
+    candidate_cursor: Checkpoint | None = None

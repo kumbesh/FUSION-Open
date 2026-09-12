@@ -29,6 +29,7 @@ fusion_compose up --detach --wait --wait-timeout 300 clickhouse
 fusion_apply_migrations
 
 echo "Starting Fusion..."
+fusion_compose up --detach --build --force-recreate --no-deps fusion-detection-engine
 fusion_compose up --detach --force-recreate --no-deps vector grafana
 fusion_compose up --detach --wait --wait-timeout 300 --remove-orphans
 

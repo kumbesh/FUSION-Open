@@ -24,7 +24,14 @@ function Get-FusionDocker {
 }
 
 function New-FusionSecret {
-    $bytes = [Security.Cryptography.RandomNumberGenerator]::GetBytes(24)
+    $bytes = New-Object byte[] 24
+    $randomNumberGenerator = [Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $randomNumberGenerator.GetBytes($bytes)
+    } finally {
+        $randomNumberGenerator.Dispose()
+    }
+
     return [Convert]::ToBase64String($bytes).TrimEnd("=").Replace("+", "-").Replace("/", "_")
 }
 

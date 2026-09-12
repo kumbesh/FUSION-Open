@@ -4,15 +4,41 @@ Fusion v0.5 adds a standalone, post-ingestion detection service. Vector continue
 
 ## Runtime design
 
-The service polls on a configurable interval and stores a `(event_time, event_uid)` checkpoint in ClickHouse. New events are read in ascending order with a fixed batch limit. A bounded lookback query revisits slightly late events. The deterministic detection ID is:
+Starting in v0.5.2, evaluation completeness is recorded in a persistent ClickHouse ledger. Each cycle follows this order:
+
+```text
+normalized source event
+  -> Sigma evaluation
+  -> synchronous detection write, when matched
+  -> evaluation-ledger write
+  -> diagnostic checkpoint/telemetry write
+```
+
+An event is marked evaluated only after rule evaluation and every required detection write complete successfully. Detection-engine ClickHouse clients explicitly request `wait_for_async_insert=1`, so an enabled asynchronous insert is acknowledged by the server before the dependent ledger write is attempted. The ledger key is `(engine_id, ruleset_fingerprint, event_uid)`. The ruleset fingerprint covers the detection-engine version, each rule's repository-relative path and bytes, and the Sigma field and MITRE mapping files. A rule, mapping, path, or engine-version change therefore creates a distinct evaluation scope instead of trusting results produced under different semantics. `fusion.detection_evaluation_scopes`, keyed by `(engine_id, ruleset_fingerprint)`, preserves each scope's enrollment floor and candidate scheduling cursor across restarts and A→B→A ruleset transitions.
+
+The candidate query anti-joins normalized source events against that ledger, rotates deterministic ordering after the persisted scheduling cursor, applies `LIMIT 1 BY event_uid` to collapse physical source replays, and only then applies the configured bounded batch limit. The cursor advances after a candidate page is attempted, but is neither a checkpoint nor a completeness marker: failed events remain unledgered and reappear when the bounded scan wraps. This prevents a full page of repeatable failures from permanently starving later valid events while retaining visible retries and bounded memory. The `(event_time, event_uid)` checkpoint is retained as a diagnostic maximum evaluated watermark; it is not the source of evaluation completeness. Actual pending work is the exact logical source-event set left by the ledger anti-join.
+
+`FUSION_DETECTION_LOOKBACK_SECONDS` defines the enrollment floor for existing history when an engine/ruleset scope starts. That floor remains fixed for the scope. Rows ingested after the floor remain eligible even when their source `event_time` is older than the configured lookback, so late visibility cannot make an enrolled event disappear behind an advancing positional checkpoint.
+
+When a cycle returns a full candidate batch, makes evaluation progress, and the ledger-backed backlog still contains work, the next bounded cycle begins immediately instead of waiting for the normal poll delay. A failed event therefore does not force a 10-second pause between otherwise productive full pages. A page on which every event fails advances only the scheduling cursor and then uses the normal poll interval; it does not advance the evaluated checkpoint or ledger. On the next cycle the scan resumes after that cursor, so later valid events remain reachable without creating a busy loop. After ten consecutive drain cycles the engine takes a 100 ms, shutdown-aware cooperative yield. Empty, partial, and fully drained cycles also use the configured poll interval. Successful empty cycles still persist the effective checkpoint and current telemetry, which heals the crash window where the ledger insert committed but the process stopped before the checkpoint insert.
+
+The deterministic detection ID is:
 
 ```text
 SHA-256(rule_id + NUL + source_event_uid)
 ```
 
-`event_uid` is a materialized SHA-256 identity derived from stable normalized/source fields and preserved raw JSON. The engine checks existing IDs before insertion, and `detections` uses `ReplacingMergeTree(updated_at)` as a second idempotency layer. The same rule and event therefore produce the same ID after replay or restart, while two rules matching one event produce two IDs.
+`event_uid` is a materialized SHA-256 identity derived from stable normalized/source fields and preserved raw JSON. The engine checks existing IDs before insertion, and `detections` uses `ReplacingMergeTree(updated_at)` as a second idempotency layer. If the process stops after a detection write but before its ledger write, replay produces the same detection ID and does not amplify the logical detection. The same rule and event therefore produce the same ID after replay or restart, while two rules matching one event produce two IDs.
 
-The checkpoint is persistent, but it is not a distributed lease. v0.5 supports one normal engine instance. Multiple concurrent instances are not a supported high-availability configuration.
+The checkpoint and ledger are persistent, but neither is a distributed lease. v0.5 supports one normal engine instance. Multiple concurrent instances are not a supported high-availability configuration.
+
+Each successful cycle stores a current pipeline snapshot: the newest eligible source position (nullable when the eligible source set is empty), diagnostic checkpoint lag in events and seconds, exact unevaluated count and oldest unevaluated age, evaluated and newly processed event counts, late-event count, processing duration, and effective evaluated events per second. Every cycle emits the same payload-free fields in the `poll_complete` log, including empty cycles. The status output also exposes the current per-scope scheduling cursor. Inspect the current position and lag as JSON without changing state:
+
+```sh
+docker compose exec -T fusion-detection-engine fusion-detection status
+```
+
+The current dashboard-ready snapshot is available through `fusion.detection_checkpoints FINAL`. Snapshot timing covers candidate fetch, evaluation, detection and ledger writes, and the exact post-cycle backlog query; it excludes checkpoint persistence and log formatting. Positional checkpoint lag can be zero while an older event remains pending, so use `unevaluated_event_count` as the evaluation-completeness measure. Exact ledger anti-join counting is appropriate for the single-node lab, but it can become a scan cost on substantially larger datasets.
 
 ## Supported Sigma subset
 
@@ -156,9 +182,9 @@ Environment safeguards:
 | `FUSION_DETECTION_BATCH_SIZE` | `1000` | 1–10000 |
 | `FUSION_DETECTION_LOG_LEVEL` | `INFO` | Python log level |
 
-The container exposes no host port, runs as UID/GID 10001, drops all Linux capabilities, uses a read-only root filesystem and bounded `/tmp`, and has CPU, memory, and PID limits. It retries ClickHouse failures with exponential backoff capped at 60 seconds and never busy-loops.
+The container exposes no host port, runs as UID/GID 10001, drops all Linux capabilities, uses a read-only root filesystem and bounded `/tmp`, and has CPU, memory, and PID limits. It retries ClickHouse failures with exponential backoff capped at 60 seconds. An event that raises a repeatable evaluation error remains unledgered for visible retry and is never silently discarded. The rotating scheduling cursor prevents it from permanently blocking later valid events, but repeated failures still consume evaluation capacity and require operator investigation.
 
-Logs report startup, loaded rule count, poll counts, matches, inserted/skipped detections, failures, and checkpoint position. Raw event bodies are not logged.
+Logs report startup, loaded rule count, per-cycle new/late/evaluated counts, matches, inserted/skipped detections, failures, duration, effective rate, checkpoint/source-head position, and event/time lag. Raw event bodies are not logged.
 
 ## Limitations
 
@@ -167,7 +193,9 @@ Logs report startup, loaded rule count, poll counts, matches, inserted/skipped d
 - No automatic community-rule download or live MITRE lookup
 - No lifecycle mutation UI, notification, containment, or case management
 - `FINAL` queries are acceptable for this small lab but are not an enterprise-scale serving design
-- Lookback is bounded; events arriving later than the configured window require an explicit controlled replay
+- Lookback controls existing-history enrollment for a new engine/ruleset scope; it is not a continuing maximum age for events ingested afterward
+- The evaluation ledger intentionally has no TTL because expiring it while a corresponding source row exists could cause duplicate evaluation. The source table's TTL bounds source-side scans, but ledger rows and old ruleset fingerprints accumulate and need capacity monitoring
+- Repeatable per-event evaluation failures remain unledgered and observable, rotate back into future bounded pages, and can reduce drain throughput until the event shape or evaluator problem is corrected
 - The current lab uses the main ClickHouse credential; a production deployment needs separate least-privilege read/write users and managed secrets
 - Detection results are analytical signals and are not proof of malicious activity
 
@@ -185,7 +213,7 @@ Record host, timestamps, source event UIDs, detection IDs, queries, and Grafana 
 ## Troubleshooting
 
 - `validate-rules` errors: read the reported path and unsupported construct; do not weaken validation.
-- Unhealthy container: inspect `docker compose logs fusion-detection-engine`, then verify ClickHouse and migration 005.
-- No matches: use `test-rule`, confirm the event is inside the bounded window, and compare normalized fields—not raw source names—with the plan.
-- Backlog: inspect `poll_complete` checkpoint progress; increase batch size only within the documented bound and available lab resources.
+- Unhealthy container: inspect `docker compose logs fusion-detection-engine`, then verify ClickHouse migrations 005 through 009.
+- No matches: use `test-rule`, confirm the event is enrolled by the current evaluation floor, and compare normalized fields—not raw source names—with the plan.
+- Backlog: run `fusion-detection status` in the container and inspect `unevaluated_event_count`, the oldest unevaluated age, and `poll_complete` fields. Full batches drain immediately; investigate ClickHouse or evaluation errors and sustained input above processing capacity before changing the bounded batch size.
 - Duplicate-looking dashboard rows: compare `detection_id`; queries use `FINAL` to resolve lifecycle replacements.

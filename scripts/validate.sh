@@ -49,16 +49,40 @@ if [ "$schema_count" -ne 42 ]; then
 fi
 detection_schema=$(fusion_compose exec -T clickhouse clickhouse-client \
   --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" \
-  --query "SELECT countIf(table = 'sysmon_events' AND name = 'event_uid'), countIf(table = 'detections'), countIf(table = 'detection_checkpoints') FROM system.columns WHERE database = 'fusion' FORMAT TSV")
-expected_detection_schema=$(printf '1\t35\t4')
+  --query "SELECT countIf(table = 'sysmon_events' AND name = 'event_uid'), countIf(table = 'detections'), countIf(table = 'detection_checkpoints'), countIf(table = 'detection_evaluated_events'), countIf(table = 'detection_evaluation_scopes') FROM system.columns WHERE database = 'fusion' FORMAT TSV")
+expected_detection_schema=$(printf '1\t35\t18\t8\t6')
 if [ "$detection_schema" != "$expected_detection_schema" ]; then
-  echo "ClickHouse v0.5 detection schema is incomplete: $detection_schema" >&2
+  echo "ClickHouse v0.5.2 detection schema is incomplete: $detection_schema" >&2
+  exit 1
+fi
+ledger_table_count=$(fusion_compose exec -T clickhouse clickhouse-client \
+  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" \
+  --query "SELECT count() FROM system.tables WHERE database = 'fusion' AND name = 'detection_evaluated_events' AND engine = 'ReplacingMergeTree' AND sorting_key = 'engine_id, ruleset_fingerprint, event_uid' AND partition_key = 'toYYYYMM(event_time)'")
+if [ "$ledger_table_count" -ne 1 ]; then
+  echo "ClickHouse v0.5.2 evaluation-ledger engine/key configuration is incorrect." >&2
+  exit 1
+fi
+scope_table_count=$(fusion_compose exec -T clickhouse clickhouse-client \
+  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" \
+  --query "SELECT count() FROM system.tables WHERE database = 'fusion' AND name = 'detection_evaluation_scopes' AND engine = 'ReplacingMergeTree' AND sorting_key = 'engine_id, ruleset_fingerprint'")
+if [ "$scope_table_count" -ne 1 ]; then
+  echo "ClickHouse v0.5.2 evaluation-scope engine/key configuration is incorrect." >&2
+  exit 1
+fi
+async_insert_settings=$(fusion_compose exec -T clickhouse clickhouse-client \
+  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" \
+  --query "SELECT getSetting('async_insert'), getSetting('wait_for_async_insert') FORMAT TSV")
+async_insert_default=$(printf '%s' "$async_insert_settings" | cut -f1)
+wait_for_async_insert_default=$(printf '%s' "$async_insert_settings" | cut -f2)
+if { [ "$async_insert_default" != "1" ] && [ "$async_insert_default" != "true" ]; } ||
+   { [ "$wait_for_async_insert_default" != "1" ] && [ "$wait_for_async_insert_default" != "true" ]; }; then
+  echo "The pinned ClickHouse validation environment must enable async_insert and wait_for_async_insert while exercising command-scoped INSERT overrides." >&2
   exit 1
 fi
 
 echo "[5/12] Proving v0.2-to-v0.3 and v0.3-to-v0.4 migrations preserve rows..."
 fusion_compose exec -T clickhouse clickhouse-client \
-  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --multiquery < "$FUSION_ROOT/clickhouse/tests/002_v02_schema.sql"
+  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --async_insert=0 --multiquery < "$FUSION_ROOT/clickhouse/tests/002_v02_schema.sql"
 migration_sql=$(mktemp)
 cleanup_migration_test() {
   rm -f "$migration_sql"
@@ -83,7 +107,7 @@ cleanup_migration_test
 trap - EXIT HUP INT TERM
 
 fusion_compose exec -T clickhouse clickhouse-client \
-  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --multiquery < "$FUSION_ROOT/clickhouse/tests/003_v03_schema.sql"
+  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --async_insert=0 --multiquery < "$FUSION_ROOT/clickhouse/tests/003_v03_schema.sql"
 v04_migration_sql=$(mktemp)
 cleanup_v04_migration_test() {
   rm -f "$v04_migration_sql"
@@ -107,12 +131,20 @@ fi
 cleanup_v04_migration_test
 trap - EXIT HUP INT TERM
 
-echo "[6/12] Proving the v0.4-to-v0.5 migration is preserving and idempotent..."
+echo "[6/12] Proving the v0.4-to-v0.5.2 migrations, evaluation ledger, and scopes are preserving and idempotent..."
 fusion_compose exec -T clickhouse clickhouse-client \
-  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --multiquery < "$FUSION_ROOT/clickhouse/tests/004_v04_schema.sql"
+  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --async_insert=0 --multiquery < "$FUSION_ROOT/clickhouse/tests/004_v04_schema.sql"
 v05_migration_sql=$(mktemp)
+v052_migration_sql=""
+v052_ledger_migration_sql=""
+v052_scope_migration_sql=""
+v052_cursor_migration_sql=""
 cleanup_v05_migration_test() {
   rm -f "$v05_migration_sql"
+  if [ -n "$v052_migration_sql" ]; then rm -f "$v052_migration_sql"; fi
+  if [ -n "$v052_ledger_migration_sql" ]; then rm -f "$v052_ledger_migration_sql"; fi
+  if [ -n "$v052_scope_migration_sql" ]; then rm -f "$v052_scope_migration_sql"; fi
+  if [ -n "$v052_cursor_migration_sql" ]; then rm -f "$v052_cursor_migration_sql"; fi
   fusion_compose exec -T clickhouse clickhouse-client \
     --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" \
     --query "DROP DATABASE IF EXISTS fusion_v05_migration_test" >/dev/null 2>&1 || true
@@ -133,6 +165,61 @@ v05_migration_result=$(fusion_compose exec -T clickhouse clickhouse-client \
 expected_v05_migration=$(printf '4\t1\t1\t1\t1\t4\t4')
 if [ "$v05_migration_result" != "$expected_v05_migration" ]; then
   echo "Existing v0.4 data was not preserved with deterministic event identities: $v05_migration_result" >&2
+  exit 1
+fi
+fusion_compose exec -T clickhouse clickhouse-client \
+  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --async_insert=0 \
+  --query "INSERT INTO fusion_v05_migration_test.detection_checkpoints (engine_id, checkpoint_time, checkpoint_uid, updated_at) VALUES ('legacy-v05-engine', toDateTime64('2026-09-04 12:00:00.000', 3, 'UTC'), 'legacy-checkpoint', toDateTime64('2026-09-04 12:00:01.000', 3, 'UTC'))"
+v052_migration_sql=$(mktemp)
+sed 's/fusion\.detection_checkpoints/fusion_v05_migration_test.detection_checkpoints/g' \
+  "$FUSION_ROOT/clickhouse/migrations/006_detection_pipeline_telemetry_v052.sql" > "$v052_migration_sql"
+fusion_compose exec -T clickhouse clickhouse-client \
+  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --multiquery < "$v052_migration_sql"
+fusion_compose exec -T clickhouse clickhouse-client \
+  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --multiquery < "$v052_migration_sql"
+rm -f "$v052_migration_sql"
+v052_migration_sql=""
+v052_ledger_migration_sql=$(mktemp)
+sed \
+  -e 's/fusion\.detection_evaluated_events/fusion_v05_migration_test.detection_evaluated_events/g' \
+  -e 's/fusion\.detection_checkpoints/fusion_v05_migration_test.detection_checkpoints/g' \
+  "$FUSION_ROOT/clickhouse/migrations/007_detection_evaluation_ledger_v052.sql" > "$v052_ledger_migration_sql"
+fusion_compose exec -T clickhouse clickhouse-client \
+  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --multiquery < "$v052_ledger_migration_sql"
+fusion_compose exec -T clickhouse clickhouse-client \
+  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --async_insert=0 \
+  --query "INSERT INTO fusion_v05_migration_test.detection_evaluated_events (engine_id, ruleset_fingerprint, event_uid, event_time, evaluated_at, source_type, host_name, validation_id) VALUES ('legacy-v05-engine', 'migration-ruleset', 'ledger-sentinel', toDateTime64('2026-09-04 12:00:00.000', 3, 'UTC'), toDateTime64('2026-09-04 12:00:02.000', 3, 'UTC'), 'migration-test', 'migration-host', 'migration-sentinel')"
+fusion_compose exec -T clickhouse clickhouse-client \
+  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --multiquery < "$v052_ledger_migration_sql"
+rm -f "$v052_ledger_migration_sql"
+v052_ledger_migration_sql=""
+v052_scope_migration_sql=$(mktemp)
+sed 's/fusion\.detection_evaluation_scopes/fusion_v05_migration_test.detection_evaluation_scopes/g' \
+  "$FUSION_ROOT/clickhouse/migrations/008_detection_evaluation_scopes_v052.sql" > "$v052_scope_migration_sql"
+fusion_compose exec -T clickhouse clickhouse-client \
+  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --multiquery < "$v052_scope_migration_sql"
+fusion_compose exec -T clickhouse clickhouse-client \
+  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --async_insert=0 \
+  --query "INSERT INTO fusion_v05_migration_test.detection_evaluation_scopes (engine_id, ruleset_fingerprint, evaluation_floor_time, updated_at) VALUES ('legacy-v05-engine', 'migration-ruleset', toDateTime64('2026-09-04 11:58:00.000', 3, 'UTC'), toDateTime64('2026-09-04 12:00:03.000', 3, 'UTC'))"
+fusion_compose exec -T clickhouse clickhouse-client \
+  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --multiquery < "$v052_scope_migration_sql"
+rm -f "$v052_scope_migration_sql"
+v052_scope_migration_sql=""
+v052_cursor_migration_sql=$(mktemp)
+sed 's/fusion\.detection_evaluation_scopes/fusion_v05_migration_test.detection_evaluation_scopes/g' \
+  "$FUSION_ROOT/clickhouse/migrations/009_detection_candidate_cursor_v052.sql" > "$v052_cursor_migration_sql"
+fusion_compose exec -T clickhouse clickhouse-client \
+  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --multiquery < "$v052_cursor_migration_sql"
+fusion_compose exec -T clickhouse clickhouse-client \
+  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --multiquery < "$v052_cursor_migration_sql"
+rm -f "$v052_cursor_migration_sql"
+v052_cursor_migration_sql=""
+v052_migration_result=$(fusion_compose exec -T clickhouse clickhouse-client \
+  --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" \
+  --query "SELECT count(), countIf(engine_id = 'legacy-v05-engine' AND ruleset_fingerprint = '' AND checkpoint_uid = 'legacy-checkpoint' AND isNull(evaluation_floor_time) AND isNull(newest_eligible_event_time) AND newest_eligible_event_uid = '' AND checkpoint_lag_events = 0 AND checkpoint_lag_seconds = 0 AND unevaluated_event_count = 0 AND isNull(oldest_unevaluated_event_time) AND oldest_unevaluated_age_seconds = 0 AND events_evaluated = 0 AND new_events_processed = 0 AND late_events_processed = 0 AND processing_duration_seconds = 0 AND evaluated_events_per_second = 0), (SELECT count() FROM system.columns WHERE database = 'fusion_v05_migration_test' AND table = 'detection_checkpoints'), (SELECT count() FROM system.columns WHERE database = 'fusion_v05_migration_test' AND table = 'detection_evaluated_events'), (SELECT count() FROM fusion_v05_migration_test.detection_evaluated_events WHERE ruleset_fingerprint = 'migration-ruleset' AND event_uid = 'ledger-sentinel'), (SELECT count() FROM system.columns WHERE database = 'fusion_v05_migration_test' AND table = 'detection_evaluation_scopes'), (SELECT count() FROM fusion_v05_migration_test.detection_evaluation_scopes FINAL WHERE engine_id = 'legacy-v05-engine' AND ruleset_fingerprint = 'migration-ruleset' AND evaluation_floor_time = toDateTime64('2026-09-04 11:58:00.000', 3, 'UTC') AND isNull(candidate_cursor_time) AND candidate_cursor_uid = ''), (SELECT count() FROM system.tables WHERE database = 'fusion_v05_migration_test' AND name = 'detection_evaluation_scopes' AND engine = 'ReplacingMergeTree' AND sorting_key = 'engine_id, ruleset_fingerprint') FROM fusion_v05_migration_test.detection_checkpoints FINAL FORMAT TSV")
+expected_v052_migration=$(printf '1\t1\t18\t8\t1\t6\t1\t1')
+if [ "$v052_migration_result" != "$expected_v052_migration" ]; then
+  echo "Existing v0.5 checkpoint data was not preserved with compatible telemetry defaults: $v052_migration_result" >&2
   exit 1
 fi
 cleanup_v05_migration_test
@@ -409,4 +496,4 @@ for variable in severity status platform host rule tactic technique; do
   printf '%s' "$provisioned_detection_dashboard" | grep -Fq "\"name\":\"$variable\""
 done
 
-echo "Validation passed: v0.1-v0.4 ingestion, v0.5 detections, migrations, restart safety, storage, and all dashboards are healthy."
+echo "Validation passed: v0.1-v0.4 ingestion, v0.5.2 detections, migrations, restart safety, storage, and all dashboards are healthy."

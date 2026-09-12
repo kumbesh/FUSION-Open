@@ -105,7 +105,7 @@ The original input is preserved in `raw_json`. For the Windows agent this includ
 
 The existing `fusion.sysmon_events` table remains in place for backward compatibility. In addition to the v0.3 common endpoint fields, v0.4 adds `device_name`, `vendor`, `product`, `event_kind`, `ingestion_protocol`, `ingestion_path`, `source_address`, `original_format`, `network_direction`, `rule_id`, `signature`, `signature_id`, `url`, `domain`, `syslog_facility`, and `syslog_application`. v0.5 adds a materialized `event_uid` used for deterministic detection identity. Transport peer metadata is deliberately separate from event-level `source_ip` and `destination_ip`.
 
-`scripts/deploy.ps1` and `scripts/deploy.sh` apply every idempotent migration, including `clickhouse/migrations/005_detection_engine_v05.sql`, before recreating the services. The validator upgrades isolated v0.2, v0.3, and v0.4 table shapes and proves that Windows, Linux, Suricata, syslog, and raw event data survive. Existing named volumes are never reset during deployment.
+`scripts/deploy.ps1` and `scripts/deploy.sh` apply every idempotent migration, including `clickhouse/migrations/005_detection_engine_v05.sql` and v0.5.2 migrations `006_detection_pipeline_telemetry_v052.sql` through `009_detection_candidate_cursor_v052.sql`, before recreating the services. The validator upgrades isolated historical table shapes and proves that Windows, Linux, Suricata, syslog, raw event data, existing detection checkpoints, and the v0.5.2 evaluation ledger/scope state survive. Existing named volumes are never reset during deployment.
 
 ## Connect a Windows Endpoint
 
@@ -380,16 +380,19 @@ Open **Dashboards → Fusion → Fusion Security Sources** and select `Suricata`
 
 ## Fusion Detection Engine
 
-The v0.5 detection service operates after ClickHouse ingestion. It reads bounded batches of normalized events, evaluates nine curated Sigma YAML rules in Python, and writes matches to `fusion.detections`. Vector contains no rule logic, and stopping or failing the detection service does not interrupt telemetry ingestion.
+The v0.5 detection service operates after ClickHouse ingestion. It reads bounded batches of normalized events, evaluates nine curated Sigma YAML rules in Python, and writes matches to `fusion.detections`. In v0.5.2, the persisted `fusion.detection_evaluated_events` ledger—not the positional checkpoint—is the authority for evaluation completeness, so late-visible and out-of-order rows remain discoverable. Vector contains no rule logic, and stopping or failing the detection service does not interrupt telemetry ingestion.
 
 The engine provides:
 
-- A persistent ClickHouse checkpoint and configurable late-event lookback
+- A persistent per-event evaluation ledger, diagnostic ClickHouse checkpoint, and configurable enrollment lookback
 - Deterministic `SHA-256(rule_id + source_event_uid)` detection IDs
 - Idempotent replay and restart behavior
 - Focused evidence containing matched selections, fields, and source event UID
 - Sigma severity and MITRE ATT&CK metadata mapping
 - Exponential ClickHouse retry/backoff and bounded batch sizes
+- Immediate bounded backlog draining after full batches, with cooperative yields
+- A persisted per-ruleset scheduling cursor so repeatably failing events cannot starve valid events behind them
+- Queryable checkpoint/source-head lag and structured per-cycle performance telemetry
 - No host port, remote rule download, or runtime Internet dependency
 
 Configuration defaults are in `.env.example`:
@@ -414,13 +417,19 @@ docker compose run --rm --no-deps fusion-detection-engine `
   test-rule /rules/windows/encoded-powershell.yml --hours 24 --limit 1000
 ```
 
+Inspect the current checkpoint and exact source backlog without changing state:
+
+```powershell
+docker compose exec -T fusion-detection-engine fusion-detection status
+```
+
 Open **Dashboards → Fusion → Fusion Detections** to view severity, status, rule, platform, source, host, user, IP, and MITRE views. Detection status defaults to `new`; the schema reserves `acknowledged` and `closed`, but v0.5 intentionally has no state-management UI.
 
 ### Supported Sigma subset
 
 Fusion supports exact matches, lists, `contains`, `startswith`, `endswith`, `exists`, AND/OR/NOT, parentheses, `1 of selection_*`, and `all of selection_*`. Field and logsource mappings are allowlisted in `detections/mappings/sigma_fields.yml`. Unknown fields, arbitrary SQL, unsupported modifiers, correlation, aggregation, threshold expressions, and `timeframe` fail validation instead of being approximated.
 
-See [detections/README.md](detections/README.md) for the complete field mapping, compiler boundary, rule-testing workflow, checkpoint/deduplication design, security controls, and performance limits. The manual real-endpoint gate is tracked separately in [docs/detection-acceptance.md](docs/detection-acceptance.md).
+See [detections/README.md](detections/README.md) for the complete field mapping, compiler boundary, rule-testing workflow, ledger/checkpoint/deduplication design, security controls, and performance limits. Final ledger-backed benchmark evidence is recorded in [docs/performance-baseline-v052.md](docs/performance-baseline-v052.md). The manual real-endpoint gate is tracked separately in [docs/detection-acceptance.md](docs/detection-acceptance.md).
 
 ### Writing a Fusion Detection Rule
 

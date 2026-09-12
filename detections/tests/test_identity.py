@@ -5,7 +5,7 @@ from conftest import MITRE_PATH, complete_event, load_detection_fixtures
 from fusion_detection.checkpoint import DetectionEngine
 from fusion_detection.config import Settings
 from fusion_detection.evaluator import DetectionEvaluator, detection_identity
-from fusion_detection.models import Checkpoint
+from fusion_detection.models import BacklogStatus, Checkpoint, EvaluationScope
 
 
 def test_detection_identity_is_deterministic_and_rule_specific():
@@ -44,15 +44,41 @@ class FakeStore:
         self.event = event
         self.checkpoint = Checkpoint(event["event_time"], event["event_uid"])
         self.ids = set()
+        self.evaluated = False
+        self.evaluation_floor = event["event_time"]
+        self.candidate_cursor = None
 
     def load_checkpoint(self):
         return self.checkpoint
 
-    def fetch_new_events(self, checkpoint):
-        return []
+    def load_evaluation_scope(self):
+        return EvaluationScope(self.evaluation_floor, self.candidate_cursor)
 
-    def fetch_late_events(self, checkpoint):
-        return [self.event]
+    def load_legacy_evaluation_floor(self):
+        return None
+
+    def initialize_evaluation_floor(self, checkpoint, evaluation_floor):
+        self.evaluation_floor = evaluation_floor
+
+    def fetch_unevaluated_events(self, evaluation_floor, candidate_cursor):
+        return [] if self.evaluated else [self.event]
+
+    def save_candidate_cursor(self, evaluation_floor, candidate_cursor):
+        self.candidate_cursor = candidate_cursor
+
+    def mark_events_evaluated(self, events):
+        events = list(events)
+        self.evaluated = bool(events) or self.evaluated
+        return len(events)
+
+    def fetch_backlog_status(self, checkpoint, evaluation_floor):
+        return BacklogStatus(
+            checkpoint.event_time,
+            checkpoint.event_uid,
+            0,
+            0.0,
+            0 if self.evaluated else 1,
+        )
 
     def existing_detection_ids(self, identifiers):
         return set(identifiers) & self.ids
@@ -62,8 +88,8 @@ class FakeStore:
         self.ids.update(candidate.detection_id for candidate in candidates)
         return len(candidates)
 
-    def save_checkpoint(self, checkpoint):
-        self.checkpoint = checkpoint
+    def save_checkpoint(self, stats):
+        self.checkpoint = stats.checkpoint
 
 
 def test_replay_and_restart_do_not_duplicate(compiled_rules, evaluator, tmp_path):
@@ -82,4 +108,6 @@ def test_replay_and_restart_do_not_duplicate(compiled_rules, evaluator, tmp_path
     second = restarted.run_cycle()
     assert first.detections_inserted >= 1
     assert second.detections_inserted == 0
-    assert second.duplicates_skipped >= 1
+    assert second.events_evaluated == 0
+    assert second.duplicates_skipped == 0
+    assert len(store.ids) == first.detections_inserted
