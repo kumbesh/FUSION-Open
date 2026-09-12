@@ -20,6 +20,7 @@ Invoke-FusionCompose up --detach --wait --wait-timeout 300 clickhouse
 Invoke-FusionMigrations
 
 Write-Host "Starting Fusion..."
+Invoke-FusionCompose up --detach --build --force-recreate --no-deps fusion-detection-engine
 Invoke-FusionCompose up --detach --force-recreate --no-deps vector grafana
 Invoke-FusionCompose up --detach --wait --wait-timeout 300 --remove-orphans
 

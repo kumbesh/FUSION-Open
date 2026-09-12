@@ -50,12 +50,27 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v5
 
-      - name: Check PowerShell syntax
+      - name: Check Windows PowerShell 5.1 syntax
+        shell: powershell
+        run: |
+          Get-ChildItem -Recurse -Filter '*.ps1' | ForEach-Object {
+            [void][scriptblock]::Create([IO.File]::ReadAllText($_.FullName))
+          }
+
+      - name: Check PowerShell 7 syntax
         shell: pwsh
         run: |
           Get-ChildItem -Recurse -Filter '*.ps1' | ForEach-Object {
             [void][scriptblock]::Create([IO.File]::ReadAllText($_.FullName))
           }
+
+      - name: Test deployment helpers on Windows PowerShell 5.1
+        shell: powershell
+        run: .\tests\powershell\test-deployment-compatibility.ps1 -ExpectedRuntime WindowsPowerShell51
+
+      - name: Test deployment helpers on PowerShell 7+
+        shell: pwsh
+        run: .\tests\powershell\test-deployment-compatibility.ps1 -ExpectedRuntime PowerShell7Plus
 
       - name: Download and verify Vector 0.58.0 for Windows
         shell: pwsh
@@ -85,6 +100,7 @@ jobs:
       - name: Check Linux agent shell scripts
         run: |
           for script in scripts/*.sh; do sh -n "$script"; done
+          shellcheck -x -e SC1007,SC1091 scripts/lib.sh scripts/deploy.sh scripts/validate.sh
           shellcheck -x scripts/test-vector-recovery.sh
           shellcheck -x scripts/validate-detections.sh
           for script in agents/linux/*.sh; do sh -n "$script"; done

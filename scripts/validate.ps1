@@ -91,15 +91,30 @@ $schemaCount = & $docker compose --project-directory $script:FusionRoot -f $scri
 if ($LASTEXITCODE -ne 0 -or [int]$schemaCount.Trim() -ne $requiredColumns.Count) {
     throw "ClickHouse common event columns are missing. Run scripts/deploy.ps1 to apply migrations."
 }
-$detectionSchemaQuery = "SELECT countIf(table = 'sysmon_events' AND name = 'event_uid'), countIf(table = 'detections'), countIf(table = 'detection_checkpoints') FROM system.columns WHERE database = 'fusion' FORMAT TSV"
+$detectionSchemaQuery = "SELECT countIf(table = 'sysmon_events' AND name = 'event_uid'), countIf(table = 'detections'), countIf(table = 'detection_checkpoints'), countIf(table = 'detection_evaluated_events'), countIf(table = 'detection_evaluation_scopes') FROM system.columns WHERE database = 'fusion' FORMAT TSV"
 $detectionSchema = & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --query $detectionSchemaQuery
-if ($LASTEXITCODE -ne 0 -or $detectionSchema.Trim() -ne "1`t35`t4") {
-    throw "ClickHouse v0.5 detection schema is incomplete: $detectionSchema"
+if ($LASTEXITCODE -ne 0 -or $detectionSchema.Trim() -ne "1`t35`t18`t8`t6") {
+    throw "ClickHouse v0.5.2 detection schema is incomplete: $detectionSchema"
+}
+$ledgerTableQuery = "SELECT count() FROM system.tables WHERE database = 'fusion' AND name = 'detection_evaluated_events' AND engine = 'ReplacingMergeTree' AND sorting_key = 'engine_id, ruleset_fingerprint, event_uid' AND partition_key = 'toYYYYMM(event_time)'"
+$ledgerTableCount = & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --query $ledgerTableQuery
+if ($LASTEXITCODE -ne 0 -or $ledgerTableCount.Trim() -ne "1") {
+    throw "ClickHouse v0.5.2 evaluation-ledger engine/key configuration is incorrect."
+}
+$scopeTableQuery = "SELECT count() FROM system.tables WHERE database = 'fusion' AND name = 'detection_evaluation_scopes' AND engine = 'ReplacingMergeTree' AND sorting_key = 'engine_id, ruleset_fingerprint'"
+$scopeTableCount = & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --query $scopeTableQuery
+if ($LASTEXITCODE -ne 0 -or $scopeTableCount.Trim() -ne "1") {
+    throw "ClickHouse v0.5.2 evaluation-scope engine/key configuration is incorrect."
+}
+$asyncInsertSettings = & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --query "SELECT getSetting('async_insert'), getSetting('wait_for_async_insert') FORMAT TSV"
+$asyncInsertSettingValues = @($asyncInsertSettings.Trim() -split "`t")
+if ($LASTEXITCODE -ne 0 -or $asyncInsertSettingValues.Count -ne 2 -or $asyncInsertSettingValues[0] -notin @("1", "true") -or $asyncInsertSettingValues[1] -notin @("1", "true")) {
+    throw "The pinned ClickHouse validation environment must enable async_insert and wait_for_async_insert while exercising command-scoped INSERT overrides."
 }
 
 Write-Host "[5/12] Proving the v0.2-to-v0.3 and v0.3-to-v0.4 migrations preserve rows..."
 $v02Schema = [IO.File]::ReadAllText((Join-Path $script:FusionRoot "clickhouse\tests\002_v02_schema.sql"))
-$v02Schema | & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --multiquery
+$v02Schema | & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --async_insert=0 --multiquery
 if ($LASTEXITCODE -ne 0) { throw "Could not create the isolated v0.2 migration fixture." }
 try {
     $migration = [IO.File]::ReadAllText((Join-Path $script:FusionRoot "clickhouse\migrations\003_common_security_events_v03.sql"))
@@ -116,7 +131,7 @@ try {
 }
 
 $v03Schema = [IO.File]::ReadAllText((Join-Path $script:FusionRoot "clickhouse\tests\003_v03_schema.sql"))
-$v03Schema | & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --multiquery
+$v03Schema | & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --async_insert=0 --multiquery
 if ($LASTEXITCODE -ne 0) { throw "Could not create the isolated v0.3 migration fixture." }
 try {
     $v04Migration = [IO.File]::ReadAllText((Join-Path $script:FusionRoot "clickhouse\migrations\004_security_tool_ingestion_v04.sql"))
@@ -132,9 +147,9 @@ try {
     & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --query "DROP DATABASE IF EXISTS fusion_v04_migration_test" | Out-Null
 }
 
-Write-Host "[6/12] Proving the v0.4-to-v0.5 migration is preserving and idempotent..."
+Write-Host "[6/12] Proving the v0.4-to-v0.5.2 migrations, evaluation ledger, and scopes are preserving and idempotent..."
 $v04Schema = [IO.File]::ReadAllText((Join-Path $script:FusionRoot "clickhouse\tests\004_v04_schema.sql"))
-$v04Schema | & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --multiquery
+$v04Schema | & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --async_insert=0 --multiquery
 if ($LASTEXITCODE -ne 0) { throw "Could not create the isolated v0.4 migration fixture." }
 try {
     $v05Migration = [IO.File]::ReadAllText((Join-Path $script:FusionRoot "clickhouse\migrations\005_detection_engine_v05.sql"))
@@ -147,6 +162,41 @@ try {
     $v05MigrationResult = & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --query $v05MigrationQuery
     if ($LASTEXITCODE -ne 0 -or $v05MigrationResult.Trim() -ne "4`t1`t1`t1`t1`t4`t4") {
         throw "Existing v0.4 data was not preserved with deterministic event identities: $v05MigrationResult"
+    }
+    & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --async_insert=0 --query "INSERT INTO fusion_v05_migration_test.detection_checkpoints (engine_id, checkpoint_time, checkpoint_uid, updated_at) VALUES ('legacy-v05-engine', toDateTime64('2026-09-04 12:00:00.000', 3, 'UTC'), 'legacy-checkpoint', toDateTime64('2026-09-04 12:00:01.000', 3, 'UTC'))" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Could not create the isolated v0.5 checkpoint fixture." }
+    $v052Migration = [IO.File]::ReadAllText((Join-Path $script:FusionRoot "clickhouse\migrations\006_detection_pipeline_telemetry_v052.sql"))
+    $isolatedV052Migration = $v052Migration.Replace("fusion.detection_checkpoints", "fusion_v05_migration_test.detection_checkpoints")
+    foreach ($execution in 1..2) {
+        $isolatedV052Migration | & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --multiquery
+        if ($LASTEXITCODE -ne 0) { throw "The isolated v0.5-to-v0.5.2 migration failed on execution $execution." }
+    }
+    $v052LedgerMigration = [IO.File]::ReadAllText((Join-Path $script:FusionRoot "clickhouse\migrations\007_detection_evaluation_ledger_v052.sql"))
+    $isolatedV052LedgerMigration = $v052LedgerMigration.Replace("fusion.detection_evaluated_events", "fusion_v05_migration_test.detection_evaluated_events").Replace("fusion.detection_checkpoints", "fusion_v05_migration_test.detection_checkpoints")
+    $isolatedV052LedgerMigration | & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --multiquery
+    if ($LASTEXITCODE -ne 0) { throw "The isolated v0.5.2 evaluation-ledger migration failed on its first execution." }
+    & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --async_insert=0 --query "INSERT INTO fusion_v05_migration_test.detection_evaluated_events (engine_id, ruleset_fingerprint, event_uid, event_time, evaluated_at, source_type, host_name, validation_id) VALUES ('legacy-v05-engine', 'migration-ruleset', 'ledger-sentinel', toDateTime64('2026-09-04 12:00:00.000', 3, 'UTC'), toDateTime64('2026-09-04 12:00:02.000', 3, 'UTC'), 'migration-test', 'migration-host', 'migration-sentinel')" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Could not create the isolated v0.5.2 evaluation-ledger fixture." }
+    $isolatedV052LedgerMigration | & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --multiquery
+    if ($LASTEXITCODE -ne 0) { throw "The isolated v0.5.2 evaluation-ledger migration failed on its second execution." }
+    $v052ScopeMigration = [IO.File]::ReadAllText((Join-Path $script:FusionRoot "clickhouse\migrations\008_detection_evaluation_scopes_v052.sql"))
+    $isolatedV052ScopeMigration = $v052ScopeMigration.Replace("fusion.detection_evaluation_scopes", "fusion_v05_migration_test.detection_evaluation_scopes")
+    $isolatedV052ScopeMigration | & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --multiquery
+    if ($LASTEXITCODE -ne 0) { throw "The isolated v0.5.2 evaluation-scope migration failed on its first execution." }
+    & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --async_insert=0 --query "INSERT INTO fusion_v05_migration_test.detection_evaluation_scopes (engine_id, ruleset_fingerprint, evaluation_floor_time, updated_at) VALUES ('legacy-v05-engine', 'migration-ruleset', toDateTime64('2026-09-04 11:58:00.000', 3, 'UTC'), toDateTime64('2026-09-04 12:00:03.000', 3, 'UTC'))" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Could not create the isolated v0.5.2 evaluation-scope fixture." }
+    $isolatedV052ScopeMigration | & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --multiquery
+    if ($LASTEXITCODE -ne 0) { throw "The isolated v0.5.2 evaluation-scope migration failed on its second execution." }
+    $v052CursorMigration = [IO.File]::ReadAllText((Join-Path $script:FusionRoot "clickhouse\migrations\009_detection_candidate_cursor_v052.sql"))
+    $isolatedV052CursorMigration = $v052CursorMigration.Replace("fusion.detection_evaluation_scopes", "fusion_v05_migration_test.detection_evaluation_scopes")
+    foreach ($execution in 1..2) {
+        $isolatedV052CursorMigration | & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --multiquery
+        if ($LASTEXITCODE -ne 0) { throw "The isolated v0.5.2 candidate-cursor migration failed on execution $execution." }
+    }
+    $v052MigrationQuery = "SELECT count(), countIf(engine_id = 'legacy-v05-engine' AND ruleset_fingerprint = '' AND checkpoint_uid = 'legacy-checkpoint' AND isNull(evaluation_floor_time) AND isNull(newest_eligible_event_time) AND newest_eligible_event_uid = '' AND checkpoint_lag_events = 0 AND checkpoint_lag_seconds = 0 AND unevaluated_event_count = 0 AND isNull(oldest_unevaluated_event_time) AND oldest_unevaluated_age_seconds = 0 AND events_evaluated = 0 AND new_events_processed = 0 AND late_events_processed = 0 AND processing_duration_seconds = 0 AND evaluated_events_per_second = 0), (SELECT count() FROM system.columns WHERE database = 'fusion_v05_migration_test' AND table = 'detection_checkpoints'), (SELECT count() FROM system.columns WHERE database = 'fusion_v05_migration_test' AND table = 'detection_evaluated_events'), (SELECT count() FROM fusion_v05_migration_test.detection_evaluated_events WHERE ruleset_fingerprint = 'migration-ruleset' AND event_uid = 'ledger-sentinel'), (SELECT count() FROM system.columns WHERE database = 'fusion_v05_migration_test' AND table = 'detection_evaluation_scopes'), (SELECT count() FROM fusion_v05_migration_test.detection_evaluation_scopes FINAL WHERE engine_id = 'legacy-v05-engine' AND ruleset_fingerprint = 'migration-ruleset' AND evaluation_floor_time = toDateTime64('2026-09-04 11:58:00.000', 3, 'UTC') AND isNull(candidate_cursor_time) AND candidate_cursor_uid = ''), (SELECT count() FROM system.tables WHERE database = 'fusion_v05_migration_test' AND name = 'detection_evaluation_scopes' AND engine = 'ReplacingMergeTree' AND sorting_key = 'engine_id, ruleset_fingerprint') FROM fusion_v05_migration_test.detection_checkpoints FINAL FORMAT TSV"
+    $v052MigrationResult = & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --query $v052MigrationQuery
+    if ($LASTEXITCODE -ne 0 -or $v052MigrationResult.Trim() -ne "1`t1`t18`t8`t1`t6`t1`t1") {
+        throw "Existing v0.5 checkpoint data was not preserved with compatible telemetry defaults: $v052MigrationResult"
     }
 } finally {
     & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --query "DROP DATABASE IF EXISTS fusion_v05_migration_test" | Out-Null
@@ -423,4 +473,4 @@ foreach ($requiredVariable in @("severity", "status", "platform", "host", "rule"
     if (@($provisionedDetectionDashboard.templating.list.name) -notcontains $requiredVariable) { throw "The provisioned Fusion Detections dashboard is missing '$requiredVariable'." }
 }
 
-Write-Host "Validation passed: v0.1-v0.4 ingestion, v0.5 detections, migrations, restart safety, storage, and all dashboards are healthy."
+Write-Host "Validation passed: v0.1-v0.4 ingestion, v0.5.2 detections, migrations, restart safety, storage, and all dashboards are healthy."
