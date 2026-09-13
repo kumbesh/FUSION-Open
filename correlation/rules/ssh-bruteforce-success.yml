@@ -1,0 +1,66 @@
+schema: fusion-correlation/v1
+id: fusion-correlation-ssh-bruteforce-success
+version: 1
+status: experimental
+title: SSH brute force followed by successful login
+description: Five failed SSH detections followed by a matching successful SSH event.
+
+window: 5m
+allowed_lateness: 15m
+group_by:
+  - host_name
+  - user_name
+  - source_ip
+
+selectors:
+  failure:
+    source: detection
+    where:
+      - field: rule_id
+        op: eq
+        value: fusion-linux-authentication-failure
+  success:
+    source: event
+    where:
+      - field: source_type
+        op: eq
+        value: linux_journald
+      - field: event_category
+        op: eq
+        value: authentication
+      - field: event_action
+        op: eq
+        value: ssh_login
+      - field: service_name
+        op: eq
+        value: ssh
+      - field: outcome
+        op: eq
+        value: success
+
+correlate:
+  type: sequence
+  stages:
+    - selector: failure
+      min_count: 5
+    - selector: success
+      min_count: 1
+
+incident:
+  type: ssh_bruteforce_then_success
+  title: "SSH failures followed by success on {host_name}"
+  severity: high
+  confidence: 90
+  primary:
+    host: host_name
+    user: user_name
+    source_ip: source_ip
+
+mitre:
+  tactic_ids:
+    - TA0006
+  technique_ids:
+    - T1110
+
+false_positives:
+  - User typing errors, expired credentials, scanners, shared NAT, or approved tests.

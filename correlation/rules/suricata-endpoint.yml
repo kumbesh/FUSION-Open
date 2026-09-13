@@ -1,0 +1,67 @@
+schema: fusion-correlation/v1
+id: fusion-correlation-suricata-endpoint
+version: 1
+status: experimental
+title: Suricata alert corroborated by endpoint activity
+description: A network detection and endpoint detection tied by proven endpoint IP context.
+
+window: 10m
+allowed_lateness: 15m
+group_by:
+  - shared_ip
+  - host_name
+
+selectors:
+  network_alert:
+    source: detection
+    where:
+      - field: source_type
+        op: eq
+        value: suricata_eve
+  endpoint_detection:
+    source: detection
+    where:
+      - field: platform
+        op: eq
+        value: windows
+  endpoint_identity:
+    source: event
+    where:
+      - field: source_type
+        op: eq
+        value: windows_sysmon
+      - field: event_code
+        op: eq
+        value: "3"
+      - field: initiated
+        op: eq
+        value: 1
+
+correlate:
+  type: join
+  require:
+    - network_alert
+    - endpoint_detection
+    - endpoint_identity
+  relations:
+    - left: endpoint_detection.host_name
+      op: equals
+      right: endpoint_identity.host_name
+    - left: network_alert.ip_set
+      op: intersects
+      right: endpoint_identity.local_ip_set
+
+incident:
+  type: cross_source_network_endpoint
+  title: "Network and endpoint activity on {host_name}"
+  severity: high
+  confidence: 85
+  primary:
+    host: host_name
+
+mitre:
+  tactic_ids: []
+  technique_ids: []
+
+false_positives:
+  - NAT, proxies, shared infrastructure, DHCP changes, scanners, or clock skew.

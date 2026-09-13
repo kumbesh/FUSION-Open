@@ -21,6 +21,7 @@ Invoke-FusionMigrations
 
 Write-Host "Starting Fusion..."
 Invoke-FusionCompose up --detach --build --force-recreate --no-deps fusion-detection-engine
+Invoke-FusionCompose up --detach --build --force-recreate --no-deps fusion-correlation-engine
 Invoke-FusionCompose up --detach --force-recreate --no-deps vector grafana
 Invoke-FusionCompose up --detach --wait --wait-timeout 300 --remove-orphans
 
@@ -40,6 +41,7 @@ $syslogUdpPort = if ($settings.ContainsKey("FUSION_SYSLOG_UDP_PORT") -and $setti
 $grafanaPort = if ($settings.ContainsKey("FUSION_GRAFANA_PORT") -and $settings.FUSION_GRAFANA_PORT) { $settings.FUSION_GRAFANA_PORT } else { "3000" }
 Write-Host "Fusion is ready."
 Write-Host "Detection engine: running without a host port"
+Write-Host "Correlation engine: running without a host port"
 Write-Host "Grafana:         http://localhost:$grafanaPort"
 Write-Host "Windows ingest:  http://$bindAddress`:$ingestPort/sysmon"
 Write-Host "Linux ingest:    http://$bindAddress`:$ingestPort/linux"

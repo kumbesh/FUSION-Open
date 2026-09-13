@@ -1,0 +1,47 @@
+schema: fusion-correlation/v1
+id: fusion-correlation-user-suspicious-activity
+version: 1
+status: experimental
+title: Multiple suspicious detections for one user
+description: Two distinct detection rules for one normalized platform principal.
+
+window: 15m
+allowed_lateness: 15m
+group_by:
+  - platform
+  - user_name
+
+selectors:
+  user_detection:
+    source: detection
+    where:
+      - field: platform
+        op: in
+        value:
+          - windows
+          - linux
+      - field: user_name
+        op: exists
+        value: true
+
+correlate:
+  type: threshold
+  selector: user_detection
+  min_count: 2
+  distinct_by: rule_id
+  min_distinct: 2
+
+incident:
+  type: identity_suspicious_activity
+  title: "Multiple suspicious detections for {user_name}"
+  severity: medium
+  confidence: 70
+  primary:
+    user: user_name
+
+mitre:
+  tactic_ids: []
+  technique_ids: []
+
+false_positives:
+  - Shared accounts, local-name collisions, service accounts, or approved administration.

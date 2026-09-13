@@ -1,0 +1,53 @@
+{
+  "schema": "fusion-correlation-fixture/v1",
+  "rule_id": "fusion-correlation-suricata-endpoint",
+  "positive": {
+    "name": "Suricata and endpoint detections with proven local IP ownership",
+    "inputs": [
+      {
+        "input_kind": "detection",
+        "input_id": "suricata-detection-1",
+        "occurred_at": "2026-09-12T12:00:00.000Z",
+        "observed_at": "2026-09-12T12:00:01.000Z",
+        "values": {"rule_id": "fusion-network-controlled-suricata-signature", "rule_version": 1, "severity": "medium", "platform": "network", "source_type": "suricata_eve", "source_ip": "192.168.186.129", "destination_ip": "192.168.186.2", "signature_id": "9000001"}
+      },
+      {
+        "input_kind": "detection",
+        "input_id": "endpoint-detection-1",
+        "occurred_at": "2026-09-12T12:05:00.000Z",
+        "observed_at": "2026-09-12T12:05:01.000Z",
+        "values": {"rule_id": "fusion-windows-encoded-powershell", "rule_version": 1, "severity": "high", "platform": "windows", "source_type": "windows_sysmon", "host_name": "Endpoint.Example.", "mitre_technique_ids": ["T1059.001"]}
+      },
+      {
+        "input_kind": "event",
+        "input_id": "endpoint-ownership-event-1",
+        "occurred_at": "2026-09-12T12:10:00.000Z",
+        "observed_at": "2026-09-12T12:10:01.000Z",
+        "values": {"event_code": "3", "event_category": "network", "event_action": "connection", "platform": "windows", "source_type": "windows_sysmon", "host_name": "endpoint.example", "source_ip": "::ffff:192.168.186.129", "destination_ip": "192.168.186.2", "protocol": "tcp", "initiated": 1}
+      }
+    ],
+    "expected": {"incident_count": 1, "severity": "high", "confidence": 85, "mitre_technique_ids": ["T1059.001"]}
+  },
+  "negative": [
+    {
+      "name": "matching-looking IP strings without ownership evidence",
+      "inputs": [
+        {
+          "input_kind": "detection",
+          "input_id": "negative-suricata-detection-1",
+          "occurred_at": "2026-09-12T13:00:00.000Z",
+          "observed_at": "2026-09-12T13:00:01.000Z",
+          "values": {"rule_id": "fusion-network-controlled-suricata-signature", "severity": "medium", "platform": "network", "source_type": "suricata_eve", "source_ip": "192.168.186.129", "destination_ip": "192.168.186.2", "signature_id": "9000001"}
+        },
+        {
+          "input_kind": "detection",
+          "input_id": "negative-endpoint-detection-1",
+          "occurred_at": "2026-09-12T13:05:00.000Z",
+          "observed_at": "2026-09-12T13:05:01.000Z",
+          "values": {"rule_id": "fusion-windows-encoded-powershell", "severity": "high", "platform": "windows", "source_type": "windows_sysmon", "host_name": "endpoint.example", "source_ip": "192.168.186.129"}
+        }
+      ],
+      "expected": {"incident_count": 0}
+    }
+  ]
+}

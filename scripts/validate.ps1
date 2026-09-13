@@ -13,7 +13,7 @@ $syslogTcpPortNumber = if ($settings.ContainsKey("FUSION_SYSLOG_TCP_PORT") -and 
 $syslogUdpPortNumber = if ($settings.ContainsKey("FUSION_SYSLOG_UDP_PORT") -and $settings.FUSION_SYSLOG_UDP_PORT) { [int]$settings.FUSION_SYSLOG_UDP_PORT } else { 5514 }
 $grafanaPortNumber = if ($settings.ContainsKey("FUSION_GRAFANA_PORT") -and $settings.FUSION_GRAFANA_PORT) { [int]$settings.FUSION_GRAFANA_PORT } else { 3000 }
 
-Write-Host "[1/12] Validating Docker Compose and secure HTTP/syslog bind modes..."
+Write-Host "[1/13] Validating Docker Compose and secure HTTP/syslog bind modes..."
 Invoke-FusionCompose config --quiet
 $hadBindAddress = Test-Path Env:FUSION_BIND_ADDRESS
 $originalBindAddress = if ($hadBindAddress) { $env:FUSION_BIND_ADDRESS } else { $null }
@@ -51,11 +51,11 @@ try {
     }
 }
 
-Write-Host "[2/12] Running collector Vector configuration and VRL unit tests..."
+Write-Host "[2/13] Running collector Vector configuration and VRL unit tests..."
 Invoke-FusionCompose run --rm --no-deps vector validate --no-environment /etc/vector/vector.yaml
 Invoke-FusionCompose run --rm --no-deps vector test /etc/vector/vector.yaml
 
-Write-Host "[3/12] Validating the Suricata EVE Vector integration configuration..."
+Write-Host "[3/13] Validating the Suricata EVE Vector integration configuration..."
 $suricataTestRoot = Join-Path ([IO.Path]::GetTempPath()) ("fusion-suricata-test-" + [Guid]::NewGuid().ToString("N"))
 [void](New-Item -ItemType Directory -Path $suricataTestRoot)
 try {
@@ -74,7 +74,7 @@ try {
     Remove-Item -LiteralPath $suricataTestRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-Write-Host "[4/12] Checking the live common ClickHouse and detection schemas..."
+Write-Host "[4/13] Checking the live common ClickHouse, detection, and correlation schemas..."
 $requiredColumns = @(
     "provider_name", "record_id", "image_loaded", "query_name", "query_status", "query_results",
     "target_filename", "target_object", "registry_details", "message", "host_name", "platform",
@@ -96,6 +96,11 @@ $detectionSchema = & $docker compose --project-directory $script:FusionRoot -f $
 if ($LASTEXITCODE -ne 0 -or $detectionSchema.Trim() -ne "1`t35`t18`t8`t6") {
     throw "ClickHouse v0.5.2 detection schema is incomplete: $detectionSchema"
 }
+$correlationSchemaQuery = "SELECT countIf(engine NOT IN ('View','MaterializedView')), countIf(engine = 'View'), countIf(engine = 'MaterializedView') FROM system.tables WHERE database = 'fusion' AND name IN ('correlation_detection_input_history','correlation_detection_input_history_mv','correlation_detection_input_witness','correlation_detection_input_witness_mv','correlation_integrity_events','correlation_integrity_scope_state_current','incidents','incident_detection_links','incident_event_links','correlation_evaluated_inputs','correlation_rule_state','correlation_episode_state','correlation_scope_bootstrap_confirmations','correlation_schedule_state','incident_status_transitions','correlation_evaluated_inputs_current','incident_status_transitions_current','correlation_scope_bootstrap_confirmations_current','correlation_rule_state_current','correlation_episode_state_current','correlation_schedule_state_current','incident_detection_links_current','incident_event_links_current','incident_revisions_committed','incidents_current','incident_timeline') FORMAT TSV"
+$correlationSchema = & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --query $correlationSchemaQuery
+if ($LASTEXITCODE -ne 0 -or $correlationSchema.Trim() -ne "12`t12`t2") {
+    throw "ClickHouse v0.6 correlation schema is incomplete: $correlationSchema"
+}
 $ledgerTableQuery = "SELECT count() FROM system.tables WHERE database = 'fusion' AND name = 'detection_evaluated_events' AND engine = 'ReplacingMergeTree' AND sorting_key = 'engine_id, ruleset_fingerprint, event_uid' AND partition_key = 'toYYYYMM(event_time)'"
 $ledgerTableCount = & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --query $ledgerTableQuery
 if ($LASTEXITCODE -ne 0 -or $ledgerTableCount.Trim() -ne "1") {
@@ -112,7 +117,7 @@ if ($LASTEXITCODE -ne 0 -or $asyncInsertSettingValues.Count -ne 2 -or $asyncInse
     throw "The pinned ClickHouse validation environment must enable async_insert and wait_for_async_insert while exercising command-scoped INSERT overrides."
 }
 
-Write-Host "[5/12] Proving the v0.2-to-v0.3 and v0.3-to-v0.4 migrations preserve rows..."
+Write-Host "[5/13] Proving the v0.2-to-v0.3 and v0.3-to-v0.4 migrations preserve rows..."
 $v02Schema = [IO.File]::ReadAllText((Join-Path $script:FusionRoot "clickhouse\tests\002_v02_schema.sql"))
 $v02Schema | & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --async_insert=0 --multiquery
 if ($LASTEXITCODE -ne 0) { throw "Could not create the isolated v0.2 migration fixture." }
@@ -147,7 +152,7 @@ try {
     & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --query "DROP DATABASE IF EXISTS fusion_v04_migration_test" | Out-Null
 }
 
-Write-Host "[6/12] Proving the v0.4-to-v0.5.2 migrations, evaluation ledger, and scopes are preserving and idempotent..."
+Write-Host "[6/13] Proving the v0.4-to-v0.5.2 migrations, evaluation ledger, and scopes are preserving and idempotent..."
 $v04Schema = [IO.File]::ReadAllText((Join-Path $script:FusionRoot "clickhouse\tests\004_v04_schema.sql"))
 $v04Schema | & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --async_insert=0 --multiquery
 if ($LASTEXITCODE -ne 0) { throw "Could not create the isolated v0.4 migration fixture." }
@@ -202,8 +207,8 @@ try {
     & $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile exec -T clickhouse clickhouse-client --user $settings.CLICKHOUSE_USER --password $settings.CLICKHOUSE_PASSWORD --query "DROP DATABASE IF EXISTS fusion_v05_migration_test" | Out-Null
 }
 
-Write-Host "[7/12] Checking container health..."
-foreach ($service in @("clickhouse", "vector", "grafana", "fusion-detection-engine")) {
+Write-Host "[7/13] Checking container health..."
+foreach ($service in @("clickhouse", "vector", "grafana", "fusion-detection-engine", "fusion-correlation-engine")) {
     $containerId = (& $docker compose --project-directory $script:FusionRoot -f $script:FusionComposeFile ps -q $service).Trim()
     if (-not $containerId) {
         throw "Service '$service' is not running. Run scripts/deploy.ps1 first."
@@ -222,7 +227,7 @@ $securitySampleFiles = @(Get-ChildItem -LiteralPath (Join-Path $script:FusionRoo
 $sampleFiles = @($v01SampleFiles) + @($windowsSampleFiles)
 
 if (-not $SkipSamples) {
-    Write-Host "[8/12] Sending Windows, Linux, security JSON, and TCP/UDP syslog fixtures..."
+    Write-Host "[8/13] Sending Windows, Linux, security JSON, and TCP/UDP syslog fixtures..."
     $ingestHost = if ($settings.ContainsKey("FUSION_BIND_ADDRESS") -and $settings.FUSION_BIND_ADDRESS) { $settings.FUSION_BIND_ADDRESS } else { "127.0.0.1" }
     $ingestUri = "http://$ingestHost`:$ingestPortNumber/sysmon"
     $headers = @{ "X-Fusion-Validation-Id" = $runId }
@@ -298,10 +303,10 @@ if (-not $SkipSamples) {
         $udpClient.Dispose()
     }
 } else {
-    Write-Host "[8/12] Sample ingestion skipped."
+    Write-Host "[8/13] Sample ingestion skipped."
 }
 
-Write-Host "[9/12] Verifying v0.1-v0.4 compatibility and normalized telemetry..."
+Write-Host "[9/13] Verifying v0.1-v0.4 compatibility and normalized telemetry..."
 if (-not $SkipSamples) {
     $query = "SELECT count(), countIf(event_id = 1), countIf(event_id = 1 AND (positionCaseInsensitiveUTF8(image, 'powershell.exe') > 0 OR positionCaseInsensitiveUTF8(image, 'pwsh.exe') > 0)), countIf(event_id = 3), countIf(event_id = 22), countIf(event_id = 22 AND query_name = 'example.com'), countIf(position(raw_json, 'windows_event_log') > 0), countIf(position(raw_json, '<Event') > 0) FROM fusion.sysmon_events WHERE validation_id = '$runId' AND platform = 'windows' FORMAT TSV"
     $queryResult = $null
@@ -363,7 +368,7 @@ if (-not $SkipSamples) {
     Write-Host "  SuricataRows=$($securityValues[0]), SyslogRows=$($syslogValues[0]), TCP=$($syslogValues[1]), UDP=$($syslogValues[2])"
 }
 
-Write-Host "[10/12] Validating endpoint and security-source dashboard queries..."
+Write-Host "[10/13] Validating endpoint and security-source dashboard queries..."
 $dashboardPath = Join-Path $script:FusionRoot "grafana\dashboards\fusion-security-overview.json"
 $dashboard = Get-Content -LiteralPath $dashboardPath -Raw | ConvertFrom-Json
 $panelTitles = @($dashboard.panels | ForEach-Object { $_.title })
@@ -416,11 +421,15 @@ if (-not $SkipSamples) {
     }
 }
 
-Write-Host "[11/12] Running detection engine acceptance tests..."
+Write-Host "[11/13] Running detection engine acceptance tests..."
 & (Join-Path $PSScriptRoot "validate-detections.ps1")
 if ($LASTEXITCODE -ne 0) { throw "Detection engine validation failed." }
 
-Write-Host "[12/12] Checking Grafana, its data source, and all provisioned dashboards..."
+Write-Host "[12/13] Running correlation engine tests and synthetic acceptance smoke..."
+& (Join-Path $PSScriptRoot "validate-correlations.ps1")
+if ($LASTEXITCODE -ne 0) { throw "Correlation engine validation failed." }
+
+Write-Host "[13/13] Checking Grafana, its data source, and all provisioned dashboards..."
 $grafanaBase = "http://127.0.0.1:$grafanaPortNumber"
 $health = Invoke-RestMethod -Uri "$grafanaBase/api/health"
 if ($health.database -ne "ok") {
@@ -473,4 +482,16 @@ foreach ($requiredVariable in @("severity", "status", "platform", "host", "rule"
     if (@($provisionedDetectionDashboard.templating.list.name) -notcontains $requiredVariable) { throw "The provisioned Fusion Detections dashboard is missing '$requiredVariable'." }
 }
 
-Write-Host "Validation passed: v0.1-v0.4 ingestion, v0.5.2 detections, migrations, restart safety, storage, and all dashboards are healthy."
+$incidentDashboards = Invoke-RestMethod -Uri "$grafanaBase/api/search?query=Fusion%20Incidents" -Headers $authHeaders
+if (-not ($incidentDashboards | Where-Object { $_.uid -eq "fusion-incidents" })) {
+    throw "Fusion Incidents dashboard was not provisioned."
+}
+$provisionedIncidentDashboard = (Invoke-RestMethod -Uri "$grafanaBase/api/dashboards/uid/fusion-incidents" -Headers $authHeaders).dashboard
+foreach ($requiredTitle in @("Open incidents", "Correlation backlog", "Incidents created over time", "Current incidents (filtered by last seen)", "Selected incident evidence timeline")) {
+    if (@($provisionedIncidentDashboard.panels.title) -notcontains $requiredTitle) { throw "The provisioned Fusion Incidents dashboard is missing '$requiredTitle'." }
+}
+foreach ($requiredVariable in @("status", "severity", "incident_type", "host", "user", "correlation_rule", "tactic", "technique", "cross_source", "incident_id")) {
+    if (@($provisionedIncidentDashboard.templating.list.name) -notcontains $requiredVariable) { throw "The provisioned Fusion Incidents dashboard is missing '$requiredVariable'." }
+}
+
+Write-Host "Validation passed: v0.1-v0.4 ingestion, v0.5.2 detections, v0.6 correlation/incidents, migrations, restart safety, storage, and all four dashboards are healthy."

@@ -1,0 +1,222 @@
+{
+  "annotations": { "list": [] },
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "description": "Current logical incidents in new or acknowledged state, filtered by incident creation time.",
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }] } }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT count() AS OpenIncidents FROM fusion.incidents_current WHERE $__timeFilter(created_at) AND status IN ('new', 'acknowledged') AND (has([${severity:sqlstring}], '.*') OR has([${severity:sqlstring}], severity)) AND (has([${incident_type:sqlstring}], '.*') OR has([${incident_type:sqlstring}], incident_type)) AND (has([${host:sqlstring}], '.*') OR has([${host:sqlstring}], primary_host)) AND (has([${user:sqlstring}], '.*') OR has([${user:sqlstring}], primary_user)) AND (has([${correlation_rule:sqlstring}], '.*') OR has([${correlation_rule:sqlstring}], correlation_rule_id)) AND (has([${tactic:sqlstring}], '.*') OR arrayExists(item -> has([${tactic:sqlstring}], item), mitre_tactic_ids)) AND (has([${technique:sqlstring}], '.*') OR arrayExists(item -> has([${technique:sqlstring}], item), mitre_technique_ids)) AND (${cross_source:sqlstring} = 'all' OR (${cross_source:sqlstring} = 'yes' AND source_family_count > 1) OR (${cross_source:sqlstring} = 'no' AND source_family_count <= 1))", "refId": "A" }],
+      "title": "Open incidents",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "description": "Current logical incidents whose lifecycle state is new, filtered by creation time.",
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "blue", "value": 1 }] } }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT count() AS NewIncidents FROM fusion.incidents_current WHERE $__timeFilter(created_at) AND status = 'new' AND (has([${severity:sqlstring}], '.*') OR has([${severity:sqlstring}], severity)) AND (has([${incident_type:sqlstring}], '.*') OR has([${incident_type:sqlstring}], incident_type)) AND (has([${host:sqlstring}], '.*') OR has([${host:sqlstring}], primary_host)) AND (has([${user:sqlstring}], '.*') OR has([${user:sqlstring}], primary_user)) AND (has([${correlation_rule:sqlstring}], '.*') OR has([${correlation_rule:sqlstring}], correlation_rule_id)) AND (has([${tactic:sqlstring}], '.*') OR arrayExists(item -> has([${tactic:sqlstring}], item), mitre_tactic_ids)) AND (has([${technique:sqlstring}], '.*') OR arrayExists(item -> has([${technique:sqlstring}], item), mitre_technique_ids)) AND (${cross_source:sqlstring} = 'all' OR (${cross_source:sqlstring} = 'yes' AND source_family_count > 1) OR (${cross_source:sqlstring} = 'no' AND source_family_count <= 1))", "refId": "A" }],
+      "title": "New incidents",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "description": "Open current incidents whose deterministic severity is high or critical.",
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT count() AS HighCriticalOpen FROM fusion.incidents_current WHERE $__timeFilter(created_at) AND status IN ('new', 'acknowledged') AND severity IN ('high', 'critical') AND (has([${incident_type:sqlstring}], '.*') OR has([${incident_type:sqlstring}], incident_type)) AND (has([${host:sqlstring}], '.*') OR has([${host:sqlstring}], primary_host)) AND (has([${user:sqlstring}], '.*') OR has([${user:sqlstring}], primary_user)) AND (has([${correlation_rule:sqlstring}], '.*') OR has([${correlation_rule:sqlstring}], correlation_rule_id)) AND (has([${tactic:sqlstring}], '.*') OR arrayExists(item -> has([${tactic:sqlstring}], item), mitre_tactic_ids)) AND (has([${technique:sqlstring}], '.*') OR arrayExists(item -> has([${technique:sqlstring}], item), mitre_technique_ids)) AND (${cross_source:sqlstring} = 'all' OR (${cross_source:sqlstring} = 'yes' AND source_family_count > 1) OR (${cross_source:sqlstring} = 'no' AND source_family_count <= 1))", "refId": "A" }],
+      "title": "High/critical open incidents",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "description": "Open incidents supported by more than one source family.",
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "purple", "value": 1 }] } }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT count() AS OpenCrossSource FROM fusion.incidents_current WHERE $__timeFilter(created_at) AND status IN ('new', 'acknowledged') AND source_family_count > 1 AND (has([${severity:sqlstring}], '.*') OR has([${severity:sqlstring}], severity)) AND (has([${incident_type:sqlstring}], '.*') OR has([${incident_type:sqlstring}], incident_type)) AND (has([${host:sqlstring}], '.*') OR has([${host:sqlstring}], primary_host)) AND (has([${user:sqlstring}], '.*') OR has([${user:sqlstring}], primary_user)) AND (has([${correlation_rule:sqlstring}], '.*') OR has([${correlation_rule:sqlstring}], correlation_rule_id)) AND (has([${tactic:sqlstring}], '.*') OR arrayExists(item -> has([${tactic:sqlstring}], item), mitre_tactic_ids)) AND (has([${technique:sqlstring}], '.*') OR arrayExists(item -> has([${technique:sqlstring}], item), mitre_technique_ids))", "refId": "A" }],
+      "title": "Open cross-source incidents",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "description": "Persisted exact unevaluated-input counts from the latest scheduling state for the selected correlation rule. This is not a live ledger anti-join.",
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 12, "x": 0, "y": 5 },
+      "id": 5,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT toUInt64(ifNull(sum(unevaluated_input_count), 0)) AS UnevaluatedInputs FROM fusion.correlation_schedule_state_current WHERE (has([${correlation_rule:sqlstring}], '.*') OR has([${correlation_rule:sqlstring}], correlation_rule_id))", "refId": "A" }],
+      "title": "Correlation backlog",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "description": "Maximum persisted age of the oldest unevaluated input. A drained scope displays 0 seconds.",
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 12 }, { "color": "red", "value": 60 }] }, "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 12, "x": 12, "y": 5 },
+      "id": 6,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT toFloat64(ifNull(max(oldest_unevaluated_age_seconds), 0.0)) AS OldestUnevaluatedAgeSeconds FROM fusion.correlation_schedule_state_current WHERE (has([${correlation_rule:sqlstring}], '.*') OR has([${correlation_rule:sqlstring}], correlation_rule_id))", "refId": "A" }],
+      "title": "Oldest unevaluated input age",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "description": "Incident creation volume. This panel uses created_at, not last_seen.",
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 1, "showPoints": "never", "stacking": { "group": "A", "mode": "normal" } } }, "overrides": [] },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 10 },
+      "id": 7,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [{ "editorType": "sql", "format": 0, "queryType": "sql", "rawSql": "SELECT $__timeInterval(created_at) AS time, severity, count() AS incidents FROM fusion.incidents_current WHERE $__timeFilter(created_at) AND (has([${status:sqlstring}], '.*') OR has([${status:sqlstring}], status)) AND (has([${severity:sqlstring}], '.*') OR has([${severity:sqlstring}], severity)) AND (has([${incident_type:sqlstring}], '.*') OR has([${incident_type:sqlstring}], incident_type)) AND (has([${host:sqlstring}], '.*') OR has([${host:sqlstring}], primary_host)) AND (has([${user:sqlstring}], '.*') OR has([${user:sqlstring}], primary_user)) AND (has([${correlation_rule:sqlstring}], '.*') OR has([${correlation_rule:sqlstring}], correlation_rule_id)) AND (has([${tactic:sqlstring}], '.*') OR arrayExists(item -> has([${tactic:sqlstring}], item), mitre_tactic_ids)) AND (has([${technique:sqlstring}], '.*') OR arrayExists(item -> has([${technique:sqlstring}], item), mitre_technique_ids)) AND (${cross_source:sqlstring} = 'all' OR (${cross_source:sqlstring} = 'yes' AND source_family_count > 1) OR (${cross_source:sqlstring} = 'no' AND source_family_count <= 1)) GROUP BY time, severity ORDER BY time, severity", "refId": "A" }],
+      "title": "Incidents created over time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 19 },
+      "id": 8,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT severity, count() AS incidents FROM fusion.incidents_current WHERE $__timeFilter(created_at) AND (has([${status:sqlstring}], '.*') OR has([${status:sqlstring}], status)) AND (has([${severity:sqlstring}], '.*') OR has([${severity:sqlstring}], severity)) AND (has([${incident_type:sqlstring}], '.*') OR has([${incident_type:sqlstring}], incident_type)) AND (has([${host:sqlstring}], '.*') OR has([${host:sqlstring}], primary_host)) AND (has([${user:sqlstring}], '.*') OR has([${user:sqlstring}], primary_user)) AND (has([${correlation_rule:sqlstring}], '.*') OR has([${correlation_rule:sqlstring}], correlation_rule_id)) AND (has([${tactic:sqlstring}], '.*') OR arrayExists(item -> has([${tactic:sqlstring}], item), mitre_tactic_ids)) AND (has([${technique:sqlstring}], '.*') OR arrayExists(item -> has([${technique:sqlstring}], item), mitre_technique_ids)) AND (${cross_source:sqlstring} = 'all' OR (${cross_source:sqlstring} = 'yes' AND source_family_count > 1) OR (${cross_source:sqlstring} = 'no' AND source_family_count <= 1)) GROUP BY severity ORDER BY incidents DESC, severity", "refId": "A" }],
+      "title": "Incident severity distribution",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 19 },
+      "id": 9,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT incident_type, count() AS incidents FROM fusion.incidents_current WHERE $__timeFilter(created_at) AND (has([${status:sqlstring}], '.*') OR has([${status:sqlstring}], status)) AND (has([${severity:sqlstring}], '.*') OR has([${severity:sqlstring}], severity)) AND (has([${incident_type:sqlstring}], '.*') OR has([${incident_type:sqlstring}], incident_type)) AND (has([${host:sqlstring}], '.*') OR has([${host:sqlstring}], primary_host)) AND (has([${user:sqlstring}], '.*') OR has([${user:sqlstring}], primary_user)) AND (has([${correlation_rule:sqlstring}], '.*') OR has([${correlation_rule:sqlstring}], correlation_rule_id)) AND (has([${tactic:sqlstring}], '.*') OR arrayExists(item -> has([${tactic:sqlstring}], item), mitre_tactic_ids)) AND (has([${technique:sqlstring}], '.*') OR arrayExists(item -> has([${technique:sqlstring}], item), mitre_technique_ids)) AND (${cross_source:sqlstring} = 'all' OR (${cross_source:sqlstring} = 'yes' AND source_family_count > 1) OR (${cross_source:sqlstring} = 'no' AND source_family_count <= 1)) GROUP BY incident_type ORDER BY incidents DESC, incident_type", "refId": "A" }],
+      "title": "Incident type distribution",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 19 },
+      "id": 10,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT primary_host AS host, count() AS incidents FROM fusion.incidents_current WHERE $__timeFilter(created_at) AND primary_host != '' AND (has([${status:sqlstring}], '.*') OR has([${status:sqlstring}], status)) AND (has([${severity:sqlstring}], '.*') OR has([${severity:sqlstring}], severity)) AND (has([${incident_type:sqlstring}], '.*') OR has([${incident_type:sqlstring}], incident_type)) AND (has([${host:sqlstring}], '.*') OR has([${host:sqlstring}], primary_host)) AND (has([${user:sqlstring}], '.*') OR has([${user:sqlstring}], primary_user)) AND (has([${correlation_rule:sqlstring}], '.*') OR has([${correlation_rule:sqlstring}], correlation_rule_id)) AND (has([${tactic:sqlstring}], '.*') OR arrayExists(item -> has([${tactic:sqlstring}], item), mitre_tactic_ids)) AND (has([${technique:sqlstring}], '.*') OR arrayExists(item -> has([${technique:sqlstring}], item), mitre_technique_ids)) AND (${cross_source:sqlstring} = 'all' OR (${cross_source:sqlstring} = 'yes' AND source_family_count > 1) OR (${cross_source:sqlstring} = 'no' AND source_family_count <= 1)) GROUP BY primary_host ORDER BY incidents DESC, host LIMIT 15", "refId": "A" }],
+      "title": "Affected hosts",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 27 },
+      "id": 11,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT primary_user AS user, count() AS incidents FROM fusion.incidents_current WHERE $__timeFilter(created_at) AND primary_user != '' AND (has([${status:sqlstring}], '.*') OR has([${status:sqlstring}], status)) AND (has([${severity:sqlstring}], '.*') OR has([${severity:sqlstring}], severity)) AND (has([${incident_type:sqlstring}], '.*') OR has([${incident_type:sqlstring}], incident_type)) AND (has([${host:sqlstring}], '.*') OR has([${host:sqlstring}], primary_host)) AND (has([${user:sqlstring}], '.*') OR has([${user:sqlstring}], primary_user)) AND (has([${correlation_rule:sqlstring}], '.*') OR has([${correlation_rule:sqlstring}], correlation_rule_id)) AND (has([${tactic:sqlstring}], '.*') OR arrayExists(item -> has([${tactic:sqlstring}], item), mitre_tactic_ids)) AND (has([${technique:sqlstring}], '.*') OR arrayExists(item -> has([${technique:sqlstring}], item), mitre_technique_ids)) AND (${cross_source:sqlstring} = 'all' OR (${cross_source:sqlstring} = 'yes' AND source_family_count > 1) OR (${cross_source:sqlstring} = 'no' AND source_family_count <= 1)) GROUP BY primary_user ORDER BY incidents DESC, user LIMIT 15", "refId": "A" }],
+      "title": "Affected users",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 27 },
+      "id": 12,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT technique, count() AS incidents FROM fusion.incidents_current ARRAY JOIN mitre_technique_ids AS technique WHERE $__timeFilter(created_at) AND (has([${status:sqlstring}], '.*') OR has([${status:sqlstring}], status)) AND (has([${severity:sqlstring}], '.*') OR has([${severity:sqlstring}], severity)) AND (has([${incident_type:sqlstring}], '.*') OR has([${incident_type:sqlstring}], incident_type)) AND (has([${host:sqlstring}], '.*') OR has([${host:sqlstring}], primary_host)) AND (has([${user:sqlstring}], '.*') OR has([${user:sqlstring}], primary_user)) AND (has([${correlation_rule:sqlstring}], '.*') OR has([${correlation_rule:sqlstring}], correlation_rule_id)) AND (has([${tactic:sqlstring}], '.*') OR arrayExists(item -> has([${tactic:sqlstring}], item), mitre_tactic_ids)) AND (has([${technique:sqlstring}], '.*') OR arrayExists(item -> has([${technique:sqlstring}], item), mitre_technique_ids)) AND (${cross_source:sqlstring} = 'all' OR (${cross_source:sqlstring} = 'yes' AND source_family_count > 1) OR (${cross_source:sqlstring} = 'no' AND source_family_count <= 1)) GROUP BY technique ORDER BY incidents DESC, technique LIMIT 20", "refId": "A" }],
+      "title": "MITRE techniques",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 27 },
+      "id": 13,
+      "options": { "displayMode": "gradient", "legend": { "showLegend": false }, "orientation": "horizontal", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT correlation_rule_id, count() AS incidents FROM fusion.incidents_current WHERE $__timeFilter(created_at) AND source_family_count > 1 AND (has([${status:sqlstring}], '.*') OR has([${status:sqlstring}], status)) AND (has([${severity:sqlstring}], '.*') OR has([${severity:sqlstring}], severity)) AND (has([${incident_type:sqlstring}], '.*') OR has([${incident_type:sqlstring}], incident_type)) AND (has([${host:sqlstring}], '.*') OR has([${host:sqlstring}], primary_host)) AND (has([${user:sqlstring}], '.*') OR has([${user:sqlstring}], primary_user)) AND (has([${correlation_rule:sqlstring}], '.*') OR has([${correlation_rule:sqlstring}], correlation_rule_id)) AND (has([${tactic:sqlstring}], '.*') OR arrayExists(item -> has([${tactic:sqlstring}], item), mitre_tactic_ids)) AND (has([${technique:sqlstring}], '.*') OR arrayExists(item -> has([${technique:sqlstring}], item), mitre_technique_ids)) GROUP BY correlation_rule_id ORDER BY incidents DESC, correlation_rule_id", "refId": "A" }],
+      "title": "Cross-source incidents by rule",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "filterable": true } }, "overrides": [] },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 35 },
+      "id": 14,
+      "options": { "cellHeight": "sm", "footer": { "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "Created" }] },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT created_at AS Created, last_seen AS LastSeen, severity AS Severity, status AS Status, incident_type AS Type, correlation_rule_id AS CorrelationRule, primary_host AS Host, primary_user AS User, source_family_count AS SourceFamilies, detection_count AS Detections, event_count AS ContextEvents, incident_id AS IncidentID FROM fusion.incidents_current WHERE $__timeFilter(created_at) AND source_family_count > 1 AND (has([${status:sqlstring}], '.*') OR has([${status:sqlstring}], status)) AND (has([${severity:sqlstring}], '.*') OR has([${severity:sqlstring}], severity)) AND (has([${incident_type:sqlstring}], '.*') OR has([${incident_type:sqlstring}], incident_type)) AND (has([${host:sqlstring}], '.*') OR has([${host:sqlstring}], primary_host)) AND (has([${user:sqlstring}], '.*') OR has([${user:sqlstring}], primary_user)) AND (has([${correlation_rule:sqlstring}], '.*') OR has([${correlation_rule:sqlstring}], correlation_rule_id)) AND (has([${tactic:sqlstring}], '.*') OR arrayExists(item -> has([${tactic:sqlstring}], item), mitre_tactic_ids)) AND (has([${technique:sqlstring}], '.*') OR arrayExists(item -> has([${technique:sqlstring}], item), mitre_technique_ids)) ORDER BY created_at DESC, incident_id LIMIT 250", "refId": "A" }],
+      "title": "Cross-source incidents",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "description": "Current confirmation-backed incident revisions. Dashboard time filters this table by last_seen; summary panels use created_at.",
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "filterable": true } },
+        "overrides": [{
+          "matcher": { "id": "byName", "options": "IncidentID" },
+          "properties": [{ "id": "links", "value": [{ "targetBlank": false, "title": "Select incident", "url": "/d/fusion-incidents/fusion-incidents?orgId=1&${__url_time_range}&var-incident_id=${__data.fields.IncidentID}" }] }]
+        }]
+      },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 45 },
+      "id": 15,
+      "options": { "cellHeight": "sm", "footer": { "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "LastSeen" }] },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT last_seen AS LastSeen, created_at AS Created, updated_at AS Updated, severity AS Severity, status AS Status, incident_type AS Type, incident_title AS Title, primary_host AS Host, primary_user AS User, correlation_rule_id AS CorrelationRule, arrayStringConcat(mitre_technique_ids, ', ') AS MITRE, input_count AS Evidence, incident_id AS IncidentID FROM fusion.incidents_current WHERE $__timeFilter(last_seen) AND (has([${status:sqlstring}], '.*') OR has([${status:sqlstring}], status)) AND (has([${severity:sqlstring}], '.*') OR has([${severity:sqlstring}], severity)) AND (has([${incident_type:sqlstring}], '.*') OR has([${incident_type:sqlstring}], incident_type)) AND (has([${host:sqlstring}], '.*') OR has([${host:sqlstring}], primary_host)) AND (has([${user:sqlstring}], '.*') OR has([${user:sqlstring}], primary_user)) AND (has([${correlation_rule:sqlstring}], '.*') OR has([${correlation_rule:sqlstring}], correlation_rule_id)) AND (has([${tactic:sqlstring}], '.*') OR arrayExists(item -> has([${tactic:sqlstring}], item), mitre_tactic_ids)) AND (has([${technique:sqlstring}], '.*') OR arrayExists(item -> has([${technique:sqlstring}], item), mitre_technique_ids)) AND (${cross_source:sqlstring} = 'all' OR (${cross_source:sqlstring} = 'yes' AND source_family_count > 1) OR (${cross_source:sqlstring} = 'no' AND source_family_count <= 1)) ORDER BY last_seen DESC, incident_id LIMIT 500", "refId": "A" }],
+      "title": "Current incidents (filtered by last seen)",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "description": "Select an exact IncidentID from the current-incidents table to inspect its confirmation-backed state. Correlation confidence is rule-declared, not a probability.",
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "filterable": true } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 57 },
+      "id": 16,
+      "options": { "cellHeight": "sm", "footer": { "show": false }, "showHeader": true },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT incident_id AS IncidentID, incident_title AS Title, incident_type AS Type, status AS Status, severity AS Severity, confidence AS CorrelationConfidence, first_seen AS FirstSeen, last_seen AS LastSeen, primary_host AS Host, primary_user AS User, primary_source_ip AS SourceIP, primary_destination_ip AS DestinationIP, detection_count AS Detections, event_count AS ContextEvents, source_family_count AS SourceFamilies, arrayStringConcat(mitre_tactic_ids, ', ') AS Tactics, arrayStringConcat(mitre_technique_ids, ', ') AS Techniques, correlation_rule_id AS CorrelationRule, correlation_rule_version AS RuleVersion, episode_anchor_kind AS AnchorKind, episode_anchor_id AS AnchorID FROM fusion.incidents_current WHERE ${incident_id:sqlstring} != '.*' AND incident_id = ${incident_id:sqlstring} ORDER BY incident_id LIMIT 100", "refId": "A" }],
+      "title": "Selected incident detail",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" },
+      "description": "Deterministic evidence order is occurrence time, input kind, then stable input ID. Visibility time makes late arrival observable. Snapshots are bounded and exclude raw payloads.",
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "filterable": true } }, "overrides": [] },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 65 },
+      "id": 17,
+      "options": { "cellHeight": "sm", "footer": { "show": false }, "showHeader": true, "sortBy": [{ "desc": false, "displayName": "Occurred" }] },
+      "targets": [{ "editorType": "sql", "format": 1, "queryType": "sql", "rawSql": "SELECT occurred_at AS Occurred, observed_at AS Observed, input_kind AS InputKind, input_id AS InputID, relationship AS Relationship, source_type AS SourceType, rule_id AS RuleID, if(input_kind = 'detection', rule_name, event_action) AS RuleOrAction, event_category AS EventCategory, outcome AS Outcome, service_name AS Service, severity AS Severity, host_name AS Host, user_name AS User, source_ip AS SourceIP, destination_ip AS DestinationIP, arrayStringConcat(mitre_technique_ids, ', ') AS MITRE, summary AS Summary FROM fusion.incident_timeline WHERE ${incident_id:sqlstring} != '.*' AND incident_id = ${incident_id:sqlstring} ORDER BY occurred_at, input_kind, input_id LIMIT 500", "refId": "A" }],
+      "title": "Selected incident evidence timeline",
+      "type": "table"
+    }
+  ],
+  "preload": false,
+  "refresh": "20s",
+  "schemaVersion": 41,
+  "tags": ["fusion", "incidents", "correlation", "clickhouse"],
+  "templating": {
+    "list": [
+      { "allValue": "'.*'", "current": { "text": "All", "value": "$__all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" }, "definition": "SELECT DISTINCT status FROM fusion.incidents_current ORDER BY status", "includeAll": true, "label": "Status", "multi": true, "name": "status", "options": [], "query": "SELECT DISTINCT status FROM fusion.incidents_current ORDER BY status", "refresh": 2, "regex": "", "sort": 1, "type": "query" },
+      { "allValue": "'.*'", "current": { "text": "All", "value": "$__all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" }, "definition": "SELECT DISTINCT severity FROM fusion.incidents_current ORDER BY severity", "includeAll": true, "label": "Severity", "multi": true, "name": "severity", "options": [], "query": "SELECT DISTINCT severity FROM fusion.incidents_current ORDER BY severity", "refresh": 2, "regex": "", "sort": 1, "type": "query" },
+      { "allValue": "'.*'", "current": { "text": "All", "value": "$__all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" }, "definition": "SELECT DISTINCT incident_type FROM fusion.incidents_current ORDER BY incident_type", "includeAll": true, "label": "Incident type", "multi": true, "name": "incident_type", "options": [], "query": "SELECT DISTINCT incident_type FROM fusion.incidents_current ORDER BY incident_type", "refresh": 2, "regex": "", "sort": 1, "type": "query" },
+      { "allValue": "'.*'", "current": { "text": "All", "value": "$__all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" }, "definition": "SELECT DISTINCT primary_host FROM fusion.incidents_current WHERE primary_host != '' ORDER BY primary_host", "includeAll": true, "label": "Host", "multi": true, "name": "host", "options": [], "query": "SELECT DISTINCT primary_host FROM fusion.incidents_current WHERE primary_host != '' ORDER BY primary_host", "refresh": 2, "regex": "", "sort": 1, "type": "query" },
+      { "allValue": "'.*'", "current": { "text": "All", "value": "$__all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" }, "definition": "SELECT DISTINCT primary_user FROM fusion.incidents_current WHERE primary_user != '' ORDER BY primary_user", "includeAll": true, "label": "User", "multi": true, "name": "user", "options": [], "query": "SELECT DISTINCT primary_user FROM fusion.incidents_current WHERE primary_user != '' ORDER BY primary_user", "refresh": 2, "regex": "", "sort": 1, "type": "query" },
+      { "allValue": "'.*'", "current": { "text": "All", "value": "$__all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" }, "definition": "SELECT DISTINCT correlation_rule_id FROM fusion.incidents_current ORDER BY correlation_rule_id", "includeAll": true, "label": "Correlation rule", "multi": true, "name": "correlation_rule", "options": [], "query": "SELECT DISTINCT correlation_rule_id FROM fusion.incidents_current ORDER BY correlation_rule_id", "refresh": 2, "regex": "", "sort": 1, "type": "query" },
+      { "allValue": "'.*'", "current": { "text": "All", "value": "$__all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" }, "definition": "SELECT DISTINCT arrayJoin(mitre_tactic_ids) AS tactic FROM fusion.incidents_current ORDER BY tactic", "includeAll": true, "label": "MITRE tactic", "multi": false, "name": "tactic", "options": [], "query": "SELECT DISTINCT arrayJoin(mitre_tactic_ids) AS tactic FROM fusion.incidents_current ORDER BY tactic", "refresh": 2, "regex": "", "sort": 1, "type": "query" },
+      { "allValue": "'.*'", "current": { "text": "All", "value": "$__all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" }, "definition": "SELECT DISTINCT arrayJoin(mitre_technique_ids) AS technique FROM fusion.incidents_current ORDER BY technique", "includeAll": true, "label": "MITRE technique", "multi": false, "name": "technique", "options": [], "query": "SELECT DISTINCT arrayJoin(mitre_technique_ids) AS technique FROM fusion.incidents_current ORDER BY technique", "refresh": 2, "regex": "", "sort": 1, "type": "query" },
+      { "current": { "text": "All", "value": "all" }, "includeAll": false, "label": "Cross source", "multi": false, "name": "cross_source", "options": [{ "selected": true, "text": "All", "value": "all" }, { "selected": false, "text": "Yes", "value": "yes" }, { "selected": false, "text": "No", "value": "no" }], "query": "all,yes,no", "type": "custom" },
+      { "allValue": "'.*'", "current": { "text": "All", "value": "$__all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "fusion-clickhouse" }, "definition": "SELECT incident_id FROM fusion.incidents_current ORDER BY last_seen DESC, incident_id LIMIT 500", "includeAll": true, "label": "Selected incident", "multi": false, "name": "incident_id", "options": [], "query": "SELECT incident_id FROM fusion.incidents_current ORDER BY last_seen DESC, incident_id LIMIT 500", "refresh": 2, "regex": "", "sort": 0, "type": "query" }
+    ]
+  },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": { "refresh_intervals": ["15s", "20s", "30s", "1m", "5m"], "time_options": ["5m", "15m", "1h", "6h", "24h", "2d", "7d", "30d"] },
+  "timezone": "browser",
+  "title": "Fusion Incidents",
+  "uid": "fusion-incidents",
+  "version": 1,
+  "weekStart": ""
+}

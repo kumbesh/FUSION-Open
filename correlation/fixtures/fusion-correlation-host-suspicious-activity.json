@@ -1,0 +1,46 @@
+{
+  "schema": "fusion-correlation-fixture/v1",
+  "rule_id": "fusion-correlation-host-suspicious-activity",
+  "positive": {
+    "name": "two distinct medium-or-higher rules at the inclusive boundary",
+    "inputs": [
+      {
+        "input_kind": "detection",
+        "input_id": "host-detection-1",
+        "occurred_at": "2026-09-12T12:00:00.000Z",
+        "observed_at": "2026-09-12T12:00:01.000Z",
+        "values": {"rule_id": "fusion-windows-encoded-powershell", "rule_version": 1, "severity": "high", "platform": "windows", "source_type": "windows_sysmon", "host_name": "Endpoint.Example.", "mitre_technique_ids": ["T1059.001"]}
+      },
+      {
+        "input_kind": "detection",
+        "input_id": "host-detection-2",
+        "occurred_at": "2026-09-12T12:10:00.000Z",
+        "observed_at": "2026-09-12T12:10:01.000Z",
+        "values": {"rule_id": "fusion-windows-suspicious-lolbin", "rule_version": 1, "severity": "medium", "platform": "windows", "source_type": "windows_sysmon", "host_name": "endpoint.example", "mitre_technique_ids": ["T1218"]}
+      }
+    ],
+    "expected": {"incident_count": 1, "severity": "high", "confidence": 70, "mitre_technique_ids": ["T1059.001", "T1218"]}
+  },
+  "negative": [
+    {
+      "name": "same suspicious rule twice",
+      "inputs": [
+        {
+          "input_kind": "detection",
+          "input_id": "negative-host-detection-1",
+          "occurred_at": "2026-09-12T13:00:00.000Z",
+          "observed_at": "2026-09-12T13:00:01.000Z",
+          "values": {"rule_id": "fusion-windows-encoded-powershell", "severity": "high", "platform": "windows", "host_name": "endpoint.example"}
+        },
+        {
+          "input_kind": "detection",
+          "input_id": "negative-host-detection-2",
+          "occurred_at": "2026-09-12T13:01:00.000Z",
+          "observed_at": "2026-09-12T13:01:01.000Z",
+          "values": {"rule_id": "fusion-windows-encoded-powershell", "severity": "high", "platform": "windows", "host_name": "endpoint.example"}
+        }
+      ],
+      "expected": {"incident_count": 0}
+    }
+  ]
+}

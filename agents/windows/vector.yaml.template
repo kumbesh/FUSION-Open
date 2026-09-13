@@ -23,11 +23,36 @@ sources:
   vector_internal_logs:
     type: internal_logs
 
+transforms:
+  # Sysmon records both the agent's outbound HTTP connection and, with Docker
+  # Desktop port publishing, the host-side com.docker.backend.exe connection.
+  # Forwarding either Event ID 3 back to the collector creates recursive
+  # self-observation noise and can be mistaken for endpoint/IP ownership during
+  # correlation. This conjunction is deliberately narrow: retain other
+  # destinations, processes, ports, protocols and inbound observations.
+  exclude_fusion_collector_feedback:
+    type: filter
+    inputs:
+      - sysmon
+    condition: |-
+      event_id = to_int(.event_id) ?? to_int(.Event.System.EventID) ?? to_int(.winlog.event_id) ?? 0
+      image = downcase(to_string(.event_data.Image) ?? to_string(.Event.EventData.Image) ?? to_string(.winlog.event_data.Image) ?? "")
+      destination_ip = downcase(to_string(.event_data.DestinationIp) ?? to_string(.Event.EventData.DestinationIp) ?? to_string(.winlog.event_data.DestinationIp) ?? "")
+      destination_port = to_int(.event_data.DestinationPort) ?? to_int(.Event.EventData.DestinationPort) ?? to_int(.winlog.event_data.DestinationPort) ?? 0
+      initiated = downcase(to_string(.event_data.Initiated) ?? to_string(.Event.EventData.Initiated) ?? to_string(.winlog.event_data.Initiated) ?? "")
+      protocol = downcase(to_string(.event_data.Protocol) ?? to_string(.Event.EventData.Protocol) ?? to_string(.winlog.event_data.Protocol) ?? "")
+      collector_host = downcase(__FUSION_COLLECTOR_HOST__)
+      is_fusion_agent = image == __FUSION_AGENT_BINARY__
+      is_docker_desktop_ingress = image == __FUSION_DOCKER_DESKTOP_BINARY__
+      is_fusion_transport = (is_fusion_agent && initiated == "true") || (is_docker_desktop_ingress && initiated == "false")
+      is_collector_destination = destination_ip == collector_host
+      !(event_id == 3 && is_fusion_transport && is_collector_destination && destination_port == __FUSION_COLLECTOR_PORT__ && protocol == "tcp")
+
 sinks:
   fusion_collector:
     type: http
     inputs:
-      - sysmon
+      - exclude_fusion_collector_feedback
     uri: '__FUSION_COLLECTOR_URL__'
     method: post
     compression: none

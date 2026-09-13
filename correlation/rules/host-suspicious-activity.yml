@@ -1,0 +1,44 @@
+schema: fusion-correlation/v1
+id: fusion-correlation-host-suspicious-activity
+version: 1
+status: experimental
+title: Multiple suspicious detections on one host
+description: Two distinct medium-or-higher detection rules on one host.
+
+window: 10m
+allowed_lateness: 15m
+group_by:
+  - host_name
+
+selectors:
+  suspicious:
+    source: detection
+    where:
+      - field: severity
+        op: in
+        value:
+          - medium
+          - high
+          - critical
+
+correlate:
+  type: threshold
+  selector: suspicious
+  min_count: 2
+  distinct_by: rule_id
+  min_distinct: 2
+
+incident:
+  type: host_suspicious_activity
+  title: "Multiple suspicious detections on {host_name}"
+  severity: medium
+  confidence: 70
+  primary:
+    host: host_name
+
+mitre:
+  tactic_ids: []
+  technique_ids: []
+
+false_positives:
+  - Administrative automation, vulnerability scans, red-team activity, or noisy rules.

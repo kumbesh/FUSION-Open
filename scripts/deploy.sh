@@ -30,6 +30,7 @@ fusion_apply_migrations
 
 echo "Starting Fusion..."
 fusion_compose up --detach --build --force-recreate --no-deps fusion-detection-engine
+fusion_compose up --detach --build --force-recreate --no-deps fusion-correlation-engine
 fusion_compose up --detach --force-recreate --no-deps vector grafana
 fusion_compose up --detach --wait --wait-timeout 300 --remove-orphans
 
@@ -40,6 +41,7 @@ fi
 fusion_load_env
 echo "Fusion is ready."
 echo "Detection engine: running without a host port"
+echo "Correlation engine: running without a host port"
 echo "Grafana: http://localhost:${FUSION_GRAFANA_PORT:-3000}"
 echo "Windows ingest: http://${FUSION_BIND_ADDRESS:-127.0.0.1}:${FUSION_INGEST_PORT:-8686}/sysmon"
 echo "Linux ingest:   http://${FUSION_BIND_ADDRESS:-127.0.0.1}:${FUSION_INGEST_PORT:-8686}/linux"

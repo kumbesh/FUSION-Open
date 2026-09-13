@@ -12,7 +12,7 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -103,6 +103,7 @@ jobs:
           shellcheck -x -e SC1007,SC1091 scripts/lib.sh scripts/deploy.sh scripts/validate.sh
           shellcheck -x scripts/test-vector-recovery.sh
           shellcheck -x scripts/validate-detections.sh
+          shellcheck -x scripts/validate-correlations.sh
           for script in agents/linux/*.sh; do sh -n "$script"; done
           shellcheck agents/linux/*.sh
           for script in integrations/suricata/*.sh; do sh -n "$script"; done
@@ -178,3 +179,92 @@ jobs:
 
       - name: Build the hardened detection image
         run: docker compose build fusion-detection-engine
+
+  validate-correlation-engine:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      clickhouse:
+        image: clickhouse/clickhouse-server:26.8.1.2041-alpine
+        env:
+          CLICKHOUSE_DB: fusion
+          CLICKHOUSE_USER: fusion
+          CLICKHOUSE_PASSWORD: correlation-ci-only
+          CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+        ports:
+          - 8123:8123
+        options: >-
+          --health-cmd "clickhouse-client --user fusion --password correlation-ci-only --query 'SELECT 1'"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            correlation/engine/requirements.txt
+            correlation/engine/requirements-dev.txt
+
+      - name: Install correlation test dependencies
+        run: |
+          python -m pip install --requirement correlation/engine/requirements-dev.txt
+          python -m pip install --no-deps --editable correlation/engine
+
+      - name: Apply the ClickHouse schema for live replay tests
+        env:
+          CLICKHOUSE_CONTAINER_ID: ${{ job.services.clickhouse.id }}
+        run: |
+          for sql in clickhouse/init/*.sql clickhouse/migrations/*.sql; do
+            docker exec -i "$CLICKHOUSE_CONTAINER_ID" clickhouse-client \
+              --user fusion --password correlation-ci-only --multiquery < "$sql"
+          done
+
+      - name: Run correlation unit, rule, runtime, and dashboard tests
+        env:
+          FUSION_TEST_CLICKHOUSE: "1"
+          FUSION_TEST_CLICKHOUSE_HOST: 127.0.0.1
+          FUSION_TEST_CLICKHOUSE_PORT: "8123"
+          FUSION_TEST_CLICKHOUSE_USER: fusion
+          FUSION_TEST_CLICKHOUSE_PASSWORD: correlation-ci-only
+        run: python -m pytest correlation/tests tests/grafana
+
+      - name: Prove correlation integrity state survives ClickHouse restart
+        env:
+          CLICKHOUSE_CONTAINER_ID: ${{ job.services.clickhouse.id }}
+        run: |
+          snapshot_query="SELECT (SELECT count() FROM fusion.correlation_detection_input_history), (SELECT sum(cityHash64(tuple(detection_id, detected_at, semantic_fingerprint))) FROM fusion.correlation_detection_input_history), (SELECT count() FROM fusion.correlation_detection_input_witness), (SELECT sum(cityHash64(tuple(detection_id, detected_at, semantic_fingerprint))) FROM fusion.correlation_detection_input_witness), (SELECT count() FROM fusion.correlation_integrity_events), (SELECT uniqExact(integrity_event_id) FROM fusion.correlation_integrity_events), (SELECT count() FROM fusion.correlation_integrity_scope_state_current) FORMAT TSV"
+          before=$(docker exec "$CLICKHOUSE_CONTAINER_ID" clickhouse-client \
+            --user fusion --password correlation-ci-only --query "$snapshot_query")
+          test "$(printf '%s' "$before" | cut -f 5)" -gt 0
+          docker restart "$CLICKHOUSE_CONTAINER_ID" >/dev/null
+          for attempt in $(seq 1 60); do
+            if docker exec "$CLICKHOUSE_CONTAINER_ID" clickhouse-client \
+              --user fusion --password correlation-ci-only --query "SELECT 1" \
+              >/dev/null 2>&1; then
+              break
+            fi
+            if [ "$attempt" -eq 60 ]; then
+              echo "ClickHouse did not become ready after restart" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          after=$(docker exec "$CLICKHOUSE_CONTAINER_ID" clickhouse-client \
+            --user fusion --password correlation-ci-only --query "$snapshot_query")
+          test "$after" = "$before"
+
+      - name: Validate exactly four frozen correlation rules
+        run: >-
+          fusion-correlation validate-rules
+          --rules-dir correlation/rules
+          --mitre-mapping correlation/mappings/mitre-technique-tactics.yml
+          --expected-count 4
+
+      - name: Build the hardened correlation image
+        run: docker compose build fusion-correlation-engine
