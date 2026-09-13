@@ -170,7 +170,7 @@ Test every relevant permutation:
 - SSH success arrives after failures and failures arrive after a previously visible success;
 - Suricata first, endpoint first, and endpoint-IP context last;
 - same input replayed before and after engine restart;
-- physical replay of one logical ID with a later visibility time retains the earliest canonical `observed_at` and the same lateness/episode outcome; conflicting immutable occurrence or entity values fail visibly rather than winning by merge order;
+- physical replay of one logical ID with a later visibility time retains the earliest canonical `observed_at` and the same lateness/episode outcome; an original before the scope floor plus any number of post-floor replays remains excluded as both candidate and context before and after restart and `OPTIMIZE ... FINAL`; conflicting immutable occurrence or entity values fail visibly rather than winning by merge order;
 - input exactly on the rule-window boundary and one millisecond outside;
 - input exactly at `episode_window_end` updates the old episode, while `episode_window_end + 1 ms` enters new partial state; changing only `observed_at` never moves either occurrence boundary;
 - occurrence inside the old episode but observation after its lateness deadline is ledgered as `no_match` plus `late_outside_boundary`, with no mutation or cloned incident;

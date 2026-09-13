@@ -105,6 +105,7 @@ try {
     $shellDetectionValidator = [IO.File]::ReadAllText((Join-Path $repositoryRoot "scripts\validate-detections.sh"))
     $powerShellDeploy = [IO.File]::ReadAllText((Join-Path $repositoryRoot "scripts\deploy.ps1"))
     $shellDeploy = [IO.File]::ReadAllText((Join-Path $repositoryRoot "scripts\deploy.sh"))
+    $compose = [IO.File]::ReadAllText((Join-Path $repositoryRoot "docker-compose.yml"))
 
     Assert-MatchCount $powerShellValidator '--async_insert=0\s+--multiquery' 3 "PowerShell migration fixtures"
     Assert-MatchCount $shellValidator '--async_insert=0\s+--multiquery' 3 "Shell migration fixtures"
@@ -124,6 +125,7 @@ try {
     Assert-Test ($shellValidator -match "getSetting\('wait_for_async_insert'\)") "Shell validation does not require acknowledged async inserts in the pinned environment."
     Assert-Test ($powerShellDeploy -match 'up\s+--detach\s+--build\s+--force-recreate\s+--no-deps\s+fusion-detection-engine') "PowerShell deploy does not rebuild and recreate the detection engine during upgrades."
     Assert-Test ($shellDeploy -match 'up\s+--detach\s+--build\s+--force-recreate\s+--no-deps\s+fusion-detection-engine') "Shell deploy does not rebuild and recreate the detection engine during upgrades."
+    Assert-MatchCount $compose 'test "\$\$\(cat /proc/1/comm\)" = "clickhouse-serv" &&' 1 "ClickHouse final-server readiness guard"
 
     foreach ($relativePath in @("docker-compose.yml", "vector\vector.yaml", "scripts\Fusion.Common.ps1", "scripts\lib.sh")) {
         $content = [IO.File]::ReadAllText((Join-Path $repositoryRoot $relativePath))

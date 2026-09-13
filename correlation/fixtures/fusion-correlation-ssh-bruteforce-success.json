@@ -1,0 +1,95 @@
+{
+  "schema": "fusion-correlation-fixture/v1",
+  "rule_id": "fusion-correlation-ssh-bruteforce-success",
+  "positive": {
+    "name": "five failures then one success at the inclusive boundary",
+    "inputs": [
+      {
+        "input_kind": "detection",
+        "input_id": "ssh-failure-1",
+        "occurred_at": "2026-09-12T12:00:00.000Z",
+        "observed_at": "2026-09-12T12:00:01.000Z",
+        "values": {"rule_id": "fusion-linux-authentication-failure", "rule_version": 1, "severity": "low", "platform": "linux", "source_type": "linux_journald", "host_name": "fusion-ubuntu", "user_name": "fusion-demo", "source_ip": "192.168.186.1"}
+      },
+      {
+        "input_kind": "detection",
+        "input_id": "ssh-failure-2",
+        "occurred_at": "2026-09-12T12:01:00.000Z",
+        "observed_at": "2026-09-12T12:01:01.000Z",
+        "values": {"rule_id": "fusion-linux-authentication-failure", "rule_version": 1, "severity": "low", "platform": "linux", "source_type": "linux_journald", "host_name": "fusion-ubuntu", "user_name": "fusion-demo", "source_ip": "192.168.186.1"}
+      },
+      {
+        "input_kind": "detection",
+        "input_id": "ssh-failure-3",
+        "occurred_at": "2026-09-12T12:02:00.000Z",
+        "observed_at": "2026-09-12T12:02:01.000Z",
+        "values": {"rule_id": "fusion-linux-authentication-failure", "rule_version": 1, "severity": "low", "platform": "linux", "source_type": "linux_journald", "host_name": "fusion-ubuntu", "user_name": "fusion-demo", "source_ip": "192.168.186.1"}
+      },
+      {
+        "input_kind": "detection",
+        "input_id": "ssh-failure-4",
+        "occurred_at": "2026-09-12T12:03:00.000Z",
+        "observed_at": "2026-09-12T12:03:01.000Z",
+        "values": {"rule_id": "fusion-linux-authentication-failure", "rule_version": 1, "severity": "low", "platform": "linux", "source_type": "linux_journald", "host_name": "fusion-ubuntu", "user_name": "fusion-demo", "source_ip": "192.168.186.1"}
+      },
+      {
+        "input_kind": "detection",
+        "input_id": "ssh-failure-5",
+        "occurred_at": "2026-09-12T12:04:00.000Z",
+        "observed_at": "2026-09-12T12:04:01.000Z",
+        "values": {"rule_id": "fusion-linux-authentication-failure", "rule_version": 1, "severity": "low", "platform": "linux", "source_type": "linux_journald", "host_name": "fusion-ubuntu", "user_name": "fusion-demo", "source_ip": "192.168.186.1"}
+      },
+      {
+        "input_kind": "event",
+        "input_id": "ssh-success-1",
+        "occurred_at": "2026-09-12T12:05:00.000Z",
+        "observed_at": "2026-09-12T12:05:01.000Z",
+        "values": {"source_type": "linux_journald", "event_category": "authentication", "event_action": "ssh_login", "service_name": "ssh", "outcome": "success", "platform": "linux", "host_name": "fusion-ubuntu", "user_name": "fusion-demo", "source_ip": "192.168.186.1"}
+      }
+    ],
+    "expected": {"incident_count": 1, "severity": "high", "confidence": 90, "mitre_technique_ids": ["T1110"]}
+  },
+  "negative": [
+    {
+      "name": "only four failures before success",
+      "inputs": [
+        {
+          "input_kind": "detection",
+          "input_id": "negative-ssh-failure-1",
+          "occurred_at": "2026-09-12T13:00:00.000Z",
+          "observed_at": "2026-09-12T13:00:01.000Z",
+          "values": {"rule_id": "fusion-linux-authentication-failure", "platform": "linux", "host_name": "fusion-ubuntu", "user_name": "fusion-demo", "source_ip": "192.168.186.1"}
+        },
+        {
+          "input_kind": "detection",
+          "input_id": "negative-ssh-failure-2",
+          "occurred_at": "2026-09-12T13:01:00.000Z",
+          "observed_at": "2026-09-12T13:01:01.000Z",
+          "values": {"rule_id": "fusion-linux-authentication-failure", "platform": "linux", "host_name": "fusion-ubuntu", "user_name": "fusion-demo", "source_ip": "192.168.186.1"}
+        },
+        {
+          "input_kind": "detection",
+          "input_id": "negative-ssh-failure-3",
+          "occurred_at": "2026-09-12T13:02:00.000Z",
+          "observed_at": "2026-09-12T13:02:01.000Z",
+          "values": {"rule_id": "fusion-linux-authentication-failure", "platform": "linux", "host_name": "fusion-ubuntu", "user_name": "fusion-demo", "source_ip": "192.168.186.1"}
+        },
+        {
+          "input_kind": "detection",
+          "input_id": "negative-ssh-failure-4",
+          "occurred_at": "2026-09-12T13:03:00.000Z",
+          "observed_at": "2026-09-12T13:03:01.000Z",
+          "values": {"rule_id": "fusion-linux-authentication-failure", "platform": "linux", "host_name": "fusion-ubuntu", "user_name": "fusion-demo", "source_ip": "192.168.186.1"}
+        },
+        {
+          "input_kind": "event",
+          "input_id": "negative-ssh-success-1",
+          "occurred_at": "2026-09-12T13:04:00.000Z",
+          "observed_at": "2026-09-12T13:04:01.000Z",
+          "values": {"source_type": "linux_journald", "event_category": "authentication", "event_action": "ssh_login", "service_name": "ssh", "outcome": "success", "platform": "linux", "host_name": "fusion-ubuntu", "user_name": "fusion-demo", "source_ip": "192.168.186.1"}
+        }
+      ],
+      "expected": {"incident_count": 0}
+    }
+  ]
+}

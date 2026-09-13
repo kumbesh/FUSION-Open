@@ -19,6 +19,7 @@ services:
       test:
         - CMD-SHELL
         - >-
+          test "$$(cat /proc/1/comm)" = "clickhouse-serv" &&
           clickhouse-client --user "$${CLICKHOUSE_USER}"
           --password "$${CLICKHOUSE_PASSWORD}" --query "SELECT 1"
       interval: 5s
@@ -137,6 +138,55 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=32m,mode=1777
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 1.0
+    security_opt:
+      - no-new-privileges:true
+
+  fusion-correlation-engine:
+    build:
+      context: ./correlation/engine
+    environment:
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-fusion}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-fusion-local-only}
+      FUSION_CORRELATION_CLICKHOUSE_HOST: clickhouse
+      FUSION_CORRELATION_CLICKHOUSE_PORT: "8123"
+      FUSION_CORRELATION_CLICKHOUSE_DATABASE: fusion
+      FUSION_CORRELATION_RULES_DIR: /rules
+      FUSION_CORRELATION_MITRE_MAPPING_PATH: /mappings/mitre-technique-tactics.yml
+      FUSION_CORRELATION_POLL_SECONDS: ${FUSION_CORRELATION_POLL_SECONDS:-10}
+      FUSION_CORRELATION_LOOKBACK_SECONDS: ${FUSION_CORRELATION_LOOKBACK_SECONDS:-3600}
+      FUSION_CORRELATION_BATCH_SIZE: ${FUSION_CORRELATION_BATCH_SIZE:-1000}
+      FUSION_CORRELATION_CONTEXT_LIMIT: ${FUSION_CORRELATION_CONTEXT_LIMIT:-10000}
+      FUSION_CORRELATION_MAX_DRAIN_CYCLES: ${FUSION_CORRELATION_MAX_DRAIN_CYCLES:-10}
+      FUSION_CORRELATION_DRAIN_YIELD_MS: ${FUSION_CORRELATION_DRAIN_YIELD_MS:-100}
+      FUSION_CORRELATION_LOG_LEVEL: ${FUSION_CORRELATION_LOG_LEVEL:-INFO}
+      FUSION_CORRELATION_CONTROL_SOCKET: /run/fusion-correlation/control.sock
+    volumes:
+      - ./correlation/rules:/rules:ro
+      - ./correlation/mappings:/mappings:ro
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    networks:
+      - fusion-backend
+    healthcheck:
+      test:
+        - CMD
+        - fusion-correlation
+        - healthcheck
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 15s
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+      - /run/fusion-correlation:size=1m,mode=0700,uid=10002,gid=10002
     cap_drop:
       - ALL
     pids_limit: 128

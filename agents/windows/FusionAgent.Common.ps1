@@ -7,9 +7,11 @@ $script:FusionVectorUri = "https://github.com/vectordotdev/vector/releases/downl
 $script:FusionVectorSha256 = "72bbedf4772302f7f67e7db2120fe5b42e39ae65873c895876fc2038050c10c5"
 $script:FusionAgentServiceName = "FusionVectorAgent"
 $script:FusionAgentDisplayName = "Fusion Windows Vector Agent"
-$script:FusionAgentInstallRoot = Join-Path $env:ProgramFiles "Fusion Vector Agent"
+$script:FusionProgramFilesRoot = [IO.Path]::GetFullPath([string] $env:ProgramFiles).TrimEnd([IO.Path]::DirectorySeparatorChar)
+$script:FusionAgentInstallRoot = Join-Path $script:FusionProgramFilesRoot "Fusion Vector Agent"
 $script:FusionAgentDataRoot = Join-Path $env:ProgramData "Fusion\Vector"
 $script:FusionAgentBinary = Join-Path $script:FusionAgentInstallRoot "bin\vector.exe"
+$script:FusionDockerDesktopBinary = Join-Path $script:FusionProgramFilesRoot "Docker\Docker\resources\com.docker.backend.exe"
 $script:FusionAgentConfig = Join-Path $script:FusionAgentDataRoot "vector.yaml"
 $script:FusionAgentState = Join-Path $script:FusionAgentDataRoot "data"
 $script:FusionAgentLogs = Join-Path $script:FusionAgentDataRoot "logs"
@@ -44,11 +46,14 @@ function Assert-FusionCollectorUrl {
     if (-not $CollectorUrl.IsAbsoluteUri) {
         throw "CollectorUrl must be an absolute URL."
     }
+    if ($CollectorUrl.HostNameType -ne [UriHostNameType]::IPv4) {
+        throw "CollectorUrl host must be a literal IPv4 address so collector feedback matching is deterministic."
+    }
     if ($CollectorUrl.Scheme -notin @("http", "https")) {
         throw "CollectorUrl must use http or https."
     }
     if ($CollectorUrl.AbsolutePath -ne "/sysmon" -or $CollectorUrl.Query -or $CollectorUrl.Fragment) {
-        throw "CollectorUrl must have the exact /sysmon path and no query or fragment (for example, http://fusion-host:8686/sysmon)."
+        throw "CollectorUrl must have the exact /sysmon path and no query or fragment (for example, http://192.168.56.1:8686/sysmon)."
     }
     if ($CollectorUrl.UserInfo) {
         throw "Do not put credentials in CollectorUrl. Fusion ingestion does not implement authentication."
@@ -58,6 +63,12 @@ function Assert-FusionCollectorUrl {
 function ConvertTo-FusionYamlSingleQuoted {
     param([Parameter(Mandatory)][string] $Value)
     return $Value.Replace("'", "''")
+}
+
+function ConvertTo-FusionNormalizedExecutablePath {
+    param([Parameter(Mandatory)][string] $Value)
+
+    return [IO.Path]::GetFullPath($Value).Replace("/", "\").ToLowerInvariant()
 }
 
 function Write-FusionAgentConfiguration {
@@ -74,6 +85,13 @@ function Write-FusionAgentConfiguration {
 
     $content = [IO.File]::ReadAllText($script:FusionAgentTemplate)
     $content = $content.Replace("__FUSION_COLLECTOR_URL__", (ConvertTo-FusionYamlSingleQuoted $CollectorUrl.AbsoluteUri))
+    $collectorHostLiteral = ConvertTo-Json -InputObject $CollectorUrl.DnsSafeHost -Compress
+    $content = $content.Replace("__FUSION_COLLECTOR_HOST__", $collectorHostLiteral)
+    $content = $content.Replace("__FUSION_COLLECTOR_PORT__", $CollectorUrl.Port.ToString([Globalization.CultureInfo]::InvariantCulture))
+    $fusionAgentBinaryLiteral = ConvertTo-Json -InputObject (ConvertTo-FusionNormalizedExecutablePath $script:FusionAgentBinary) -Compress
+    $content = $content.Replace("__FUSION_AGENT_BINARY__", $fusionAgentBinaryLiteral)
+    $dockerDesktopBinaryLiteral = ConvertTo-Json -InputObject (ConvertTo-FusionNormalizedExecutablePath $script:FusionDockerDesktopBinary) -Compress
+    $content = $content.Replace("__FUSION_DOCKER_DESKTOP_BINARY__", $dockerDesktopBinaryLiteral)
     $content = $content.Replace("__FUSION_DATA_DIR__", (ConvertTo-FusionYamlSingleQuoted $script:FusionAgentState))
     $content = $content.Replace("__FUSION_LOG_DIR__", (ConvertTo-FusionYamlSingleQuoted $script:FusionAgentLogs))
     [IO.File]::WriteAllText($script:FusionAgentConfig, $content, [Text.UTF8Encoding]::new($false))

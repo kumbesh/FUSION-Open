@@ -33,6 +33,10 @@ First follow the **Connect a Windows Endpoint** section in the repository `READM
 .\status.ps1
 ```
 
+`CollectorUrl` must use the literal IPv4 address of the Fusion lab interface.
+Hostnames and IPv6 literals are rejected because the agent's collector-feedback
+filter must match the destination deterministically without DNS-dependent aliases.
+
 Lifecycle scripts:
 
 | Action | Command |
@@ -57,6 +61,14 @@ The installer retrieves the pinned official Vector archive over HTTPS and verifi
 
 - `read_existing_events: false` avoids an unexpected historical-event flood. Vector checkpoints new progress under `C:\ProgramData\Fusion\Vector\data`.
 - A disk buffer retains queued events during a temporary collector outage.
+- The agent excludes only TCP Event ID 3 collector-transport records for its
+  own initiated `vector.exe` connection and Docker Desktop's exact, normalized
+  host-side `com.docker.backend.exe` port-publishing process, at the configured collector
+  destination and port, before buffering. Other process network activity,
+  destinations, ports, protocols, and unrelated non-initiated traffic remain
+  observable.
+  This prevents both sides of the Docker-published collector connection from
+  becoming recursive telemetry or false endpoint/IP ownership evidence.
 - `include_xml: true` keeps the rendered Windows XML in the event. Fusion's collector places the entire received object in ClickHouse `raw_json`.
 - Local Vector internal logs are written to daily files under `C:\ProgramData\Fusion\Vector\logs`.
 - The HTTP sink health check is disabled because `/sysmon` is POST-only. Use `Test-NetConnection <host> -Port 8686`, `status.ps1`, and the ClickHouse query in the main README to validate the path.
