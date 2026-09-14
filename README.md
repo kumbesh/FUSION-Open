@@ -11,6 +11,17 @@ Suricata EVE ───┘                         │                      │
                                          └─ Sigma + MITRE       └─ bounded normalized-event context
 ```
 
+## BYOE — Bring Your Own EDR
+
+> Keep your EDR. Bring the telemetry. Correlate everything.
+
+FUSION-Open is designed to complement—not replace—existing endpoint security products. The BYOE workflow explains how supported generic transports can feed FUSION's shared event model; vendor-specific compatibility depends on explicit mapping and validation and must not be inferred from a vendor name.
+
+- [BYOE overview](docs/byoe-overview.md)
+- [BYOE integration guide](docs/byoe-integration-guide.md)
+- [Generic BYOE JSON contract](docs/byoe-generic-json-schema.md)
+- [BYOE compatibility matrix](docs/byoe-compatibility-matrix.md)
+
 ## Screenshots
 
 ### Fusion Detections
@@ -605,7 +616,7 @@ samples/windows-agent/                   Native Windows-agent-shaped test events
 samples/linux-agent/                     Linux auditd/journald validation fixtures
 samples/security-tools/                  Suricata EVE and RFC 3164/5424 validation fixtures
 samples/detections/                      Positive and negative normalized rule fixtures
-docs/                                    Design notes for future integrations
+docs/                                    Architecture, acceptance, operations, and integration guidance
 scripts/                                 Deploy, stop, reset, and validate helpers
 vector/vector.yaml                       Receiver, normalization, buffering, tests
 docker-compose.yml                       Pinned service topology
